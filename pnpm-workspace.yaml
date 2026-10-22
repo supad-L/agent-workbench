@@ -1,0 +1,5 @@
+allowBuilds:
+  electron: true
+  electron-winstaller: false
+storeDir: output/tool-cache/pnpm-store
+verifyDepsBeforeRun: false

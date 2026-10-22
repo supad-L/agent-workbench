@@ -1,0 +1,60 @@
+{
+  "name": "agent-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "本地多 Agent 开发工作台",
+  "author": {
+    "name": "supad-L",
+    "email": "t81077759@gmail.com"
+  },
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "build:ui": "tsc --noEmit -p web/tsconfig.json && vite build --config web/vite.config.ts",
+    "icons": "node scripts/build-icons.mjs",
+    "test:desktop": "node --test desktop/*.test.cjs",
+    "desktop": "electron .",
+    "package:mac": "electron-builder --mac --arm64 --dir"
+  },
+  "dependencies": {
+    "@ant-design/icons": "6.3.4",
+    "antd": "6.6.7",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  },
+  "build": {
+    "appId": "com.supad.agentworkbench",
+    "productName": "Agent Workbench",
+    "asar": true,
+    "directories": {
+      "output": "output/desktop"
+    },
+    "files": [
+      "desktop/**/*.cjs",
+      "!desktop/**/*.test.cjs",
+      "web/dist/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "bin/agent-workbench",
+        "to": "bin/agent-workbench"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/app.icns",
+      "identity": null
+    }
+  }
+}

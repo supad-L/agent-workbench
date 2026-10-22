@@ -13,3 +13,5 @@ web/dist/
 coverage.out
 __pycache__/
 *.pyc
+node_modules/
+assets/app.iconset/
