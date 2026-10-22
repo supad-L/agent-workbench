@@ -1,5 +1,7 @@
 # M0 接口合同
 
+当前 M1 服务已实现项目、方案、资料、消息与事件等基础接口，实际请求和权限见 [M1 本地接口说明](../docs/m1-api.md)。本目录 OpenAPI 保留完整规划草案，不能把其中 planned 路由视为已实现；JSON Schema v1 继续用于内容校验。
+
 本目录的 JSON Schema 使用 draft 2020-12，版本为 1。scripts/generate-contracts.py 是定义来源，运行后生成 schema 与合成示例；修改定义后必须重新生成并评审差异。
 
 | 合同 | 定义 |

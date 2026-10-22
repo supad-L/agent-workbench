@@ -1,6 +1,34 @@
 # 开发与运行
 
-当前提供 M0 开发命令，尚未提供完整工作台服务和 Web UI。
+当前提供 M1 本地服务与 Electron 桌面工作台，附带三种协议的自定义 API 配置。真实主 Agent、派工和审查闭环仍按后续阶段接入。原 M0 探针继续保留。
+
+## 桌面运行与打包
+
+本机已打包的 macOS arm64 应用位于 `output/desktop/mac-arm64/Agent Workbench.app`。在项目根目录双击 `启动工作台.command`，工作台数据写入同目录的 `data/desktop/`；项目在外置盘时数据随之保存在外置盘。直接双击 `.app` 则默认使用系统用户应用数据目录。当前包为未签名的本地开发包，尚未完成正式分发、公证和跨平台验证。
+
+首次构建需要 Go、Git、C 编译器（SQLite 的 CGO 依赖）、Node.js 24 和 pnpm 11.25。macOS 可使用 Xcode Command Line Tools 提供编译器；本机已具备。前端脚本优先查找 PATH，再查找本机 Codex 依赖运行时，工具缓存放在仓库的 `output/tool-cache/`。
+
+~~~sh
+python3 scripts/dev.py build
+python3 scripts/frontend.py install
+python3 scripts/frontend.py exec install-electron
+python3 scripts/frontend.py build:ui
+python3 scripts/frontend.py desktop
+~~~
+
+首次 `install-electron` 和打包可能下载 Electron。生成可直接打开的本地应用及验证命令：
+
+~~~sh
+python3 scripts/frontend.py package:mac
+python3 scripts/frontend.py test:desktop
+python3 scripts/frontend.py test:ui
+python3 scripts/m1-smoke.py
+python3 scripts/desktop-smoke.py
+~~~
+
+`m1-smoke.py` 使用临时源项目和真实本地服务，结束后清理夹具；`desktop-smoke.py` 启动实际应用，验证渲染层启动握手、后端健康、退出和再次启动，不自动点击界面。两者均不请求模型。仅修改文档时无需重新打包，修改 Go/前端/桌面代码后应先重建相应部分，再打包。
+
+独立后端入口为 `./bin/agent-workbench serve --data-dir /ABSOLUTE/DATA_DIRECTORY`。它输出包含本地人类令牌的私有启动握手，不要把原始 stdout 上传；一般使用桌面入口即可。M1 HTTP 合同见 [本地接口说明](./m1-api.md)，操作见 [中文指南](./工作台-中文操作指南.md)。
 
 ## 环境
 
@@ -62,11 +90,11 @@ python3 scripts/dev.py sandbox --runtime podman --scratch-dir /Volumes/D/Podman/
 
 新终端已包含本机 `~/.local/bin/podman` 命令路径。上述目录及镜像是本机验证环境，其他用户应替换为其本地已准备的目录和镜像。Docker 和 Podman 的镜像存储独立；一个引擎里的镜像不会自动出现在另一个引擎中。
 
-这是开发原型的 CLI 入口，正式工作台设置界面仍待后续阶段实现。容器创建、挂载、资源限制及清理由程序负责，用户无需在桌面应用里手动创建任务容器；模型账号的代理配置属于工作台连接配置。
+这是隔离原型的 CLI 入口，正式任务执行器与运行时设置界面仍待后续阶段实现。M1 的项目/资料/方案功能不执行用户源码，无需先启动容器。后续容器创建、挂载、资源限制及清理由程序负责；模型账号的代理配置属于工作台连接配置。
 
 ## 手动验证公司中转或其他真实 API
 
-用户已选择先验收 DeepSeek API。专用模板为 `configs/deepseek-api-probe.example.json`，在交互终端运行 `python3 scripts/live-deepseek-probe.py` 可隐藏输入 Key 并发出两轮测试；不会保存密钥。当前使用显式 DeepSeek Chat 方言、`max_tokens` 和非思考模式，真实账号尚待用户输入。具体操作见 [DeepSeek 本地接入测试](./DeepSeek-本地接入测试.md)。
+用户已回传 DeepSeek 真实两轮工具回合通过的本机报告，未重复调用。桌面“模型连接”支持自行选择协议、地址、认证、网络和额外请求头。CLI 专用模板仍为 `configs/deepseek-api-probe.example.json`，在交互终端运行 `python3 scripts/live-deepseek-probe.py` 可隐藏输入 Key 并发出两轮测试；不会保存密钥。使用显式 DeepSeek Chat 方言、`max_tokens` 和非思考模式。具体操作见 [DeepSeek 本地接入测试](./DeepSeek-本地接入测试.md)。
 
 configs/api-probe.example.json 提供配置格式。复制到忽略的 config.local.json，填写实际协议、Base URL/完整端点、模型和认证方式；密钥只从你明确设置的 AWB_ 环境变量读取，不会自动读取 OpenAI/Claude 现有登录文件。
 
