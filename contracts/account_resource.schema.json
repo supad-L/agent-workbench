@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-workbench.invalid/contracts/account_resource.schema.json",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "resource_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "realm": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32768
+    },
+    "identity_source": {
+      "type": "string",
+      "enum": [
+        "verified_principal",
+        "credential_fingerprint",
+        "unknown"
+      ]
+    },
+    "identity_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "refresh_owner_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "max_concurrent": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32
+    },
+    "quota_scope": {
+      "type": "string",
+      "enum": [
+        "account",
+        "workspace",
+        "service",
+        "unknown"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "resource_id",
+    "realm",
+    "identity_source",
+    "max_concurrent",
+    "quota_scope"
+  ],
+  "additionalProperties": false
+}

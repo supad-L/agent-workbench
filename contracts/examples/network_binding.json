@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "account_resource_id": "account-1",
+  "ui_mode": "proxy",
+  "proxy_id": "proxy-1",
+  "policy_revision": 1
+}

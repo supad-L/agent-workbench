@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-workbench.invalid/contracts/connection.schema.json",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "connection_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32768
+    },
+    "execution": {
+      "type": "string",
+      "enum": [
+        "direct_api",
+        "codex",
+        "claude"
+      ]
+    },
+    "protocol": {
+      "type": "string",
+      "enum": [
+        "messages",
+        "chat_completions",
+        "responses"
+      ]
+    },
+    "address": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 2048
+    },
+    "address_kind": {
+      "type": "string",
+      "enum": [
+        "base_url",
+        "endpoint"
+      ]
+    },
+    "auth_kind": {
+      "type": "string",
+      "enum": [
+        "api_key",
+        "bearer",
+        "cli_login",
+        "oauth",
+        "none"
+      ]
+    },
+    "credential_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "account_resource_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "model_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32768
+      },
+      "minItems": 1,
+      "maxItems": 256,
+      "uniqueItems": true
+    },
+    "egress": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "system",
+            "explicit_proxy",
+            "enforced_proxy"
+          ]
+        },
+        "dns_mode": {
+          "type": "string",
+          "enum": [
+            "system",
+            "proxy"
+          ]
+        },
+        "proxy_ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        }
+      },
+      "required": [
+        "mode",
+        "dns_mode"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "system"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "dns_mode": {
+                "const": "system"
+              }
+            },
+            "not": {
+              "required": [
+                "proxy_ref"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "explicit_proxy",
+                  "enforced_proxy"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "dns_mode": {
+                "const": "proxy"
+              }
+            },
+            "required": [
+              "proxy_ref"
+            ]
+          }
+        }
+      ]
+    },
+    "max_concurrent": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32
+    }
+  },
+  "required": [
+    "schema_version",
+    "connection_id",
+    "label",
+    "execution",
+    "protocol",
+    "address",
+    "address_kind",
+    "auth_kind",
+    "account_resource_id",
+    "model_ids",
+    "egress",
+    "max_concurrent"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "proxy_id": "proxy-1",
+  "label": "专用出口（合成示例）",
+  "scheme": "socks5h",
+  "host": "proxy.example.invalid",
+  "port": 1080,
+  "credential_ref": "proxy-secret-reference",
+  "enabled": true,
+  "revision": 1
+}

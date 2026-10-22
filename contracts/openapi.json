@@ -1,0 +1,1026 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "agent-workbench interface baseline",
+    "version": "0.1.0",
+    "description": "M0 contract draft; HTTP business services are not implemented yet."
+  },
+  "paths": {
+    "/api/projects": {
+      "post": {
+        "operationId": "post_api_projects",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/messages": {
+      "post": {
+        "operationId": "post_api_projects_id_messages",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/plans/{version}": {
+      "get": {
+        "operationId": "get_api_projects_id_plans_version",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/plans/{version}/confirm": {
+      "post": {
+        "operationId": "post_api_projects_id_plans_version_confirm",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Confirmation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/changes": {
+      "post": {
+        "operationId": "post_api_projects_id_changes",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/changes/{id}/confirm": {
+      "post": {
+        "operationId": "post_api_changes_id_confirm",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Confirmation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clarifications/{id}/answer": {
+      "post": {
+        "operationId": "post_api_clarifications_id_answer",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/tasks": {
+      "get": {
+        "operationId": "get_api_projects_id_tasks",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/tasks/{id}/artifacts": {
+      "get": {
+        "operationId": "get_api_tasks_id_artifacts",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/pause": {
+      "post": {
+        "operationId": "post_api_projects_id_pause",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/resume": {
+      "post": {
+        "operationId": "post_api_projects_id_resume",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/roles": {
+      "get": {
+        "operationId": "get_api_roles",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_api_roles",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        }
+      }
+    },
+    "/api/connections": {
+      "get": {
+        "operationId": "get_api_connections",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_api_connections",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./connection.schema.json"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/connections/{id}/auth/start": {
+      "post": {
+        "operationId": "post_api_connections_id_auth_start",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/connections/{id}/auth/complete": {
+      "post": {
+        "operationId": "post_api_connections_id_auth_complete",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/connections/{id}/test": {
+      "post": {
+        "operationId": "post_api_connections_id_test",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/proxies": {
+      "get": {
+        "operationId": "get_api_proxies",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_api_proxies",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./proxy_endpoint.schema.json"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/proxies/{id}": {
+      "patch": {
+        "operationId": "patch_api_proxies_id",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./proxy_endpoint.schema.json"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_api_proxies_id",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/proxies/{id}/test": {
+      "post": {
+        "operationId": "post_api_proxies_id_test",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/account-resources/{id}/network": {
+      "put": {
+        "operationId": "put_api_account-resources_id_network",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./network_binding.schema.json"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_api_account-resources_id_network",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/events": {
+      "get": {
+        "operationId": "get_api_projects_id_events",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ]
+      }
+    },
+    "/internal/tools/messages": {
+      "post": {
+        "operationId": "post_internal_tools_messages",
+        "x-implementation-status": "planned",
+        "security": [
+          {
+            "TaskCapability": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation result; does not imply task acceptance"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Principal lacks this operation"
+          },
+          "409": {
+            "description": "Stale version, epoch, hash or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./message.schema.json"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "HumanSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "User-only identity; never supplied to task containers"
+      },
+      "TaskCapability": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Task-scoped identity checked with execution epochs; cannot confirm a plan"
+      }
+    },
+    "schemas": {
+      "Confirmation": {
+        "type": "object",
+        "properties": {
+          "expected_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "idempotency_key": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+          }
+        },
+        "required": [
+          "expected_hash",
+          "expected_revision",
+          "idempotency_key"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+.DS_Store
+.tools/
+bin/
+output/
+data/
+.env
+.env.*
+!.env.example
+config.local.json
+credentials/
+web/node_modules/
+web/dist/
+coverage.out
+__pycache__/
+*.pyc

@@ -1,0 +1,15 @@
+{
+  "endpoint": {
+    "protocol": "messages",
+    "address": "https://model.company.invalid/v1/messages",
+    "address_kind": "endpoint",
+    "allow_local_http": false
+  },
+  "model": "REPLACE_WITH_COMPANY_MODEL_ID",
+  "auth_kind": "bearer",
+  "key_env": "AWB_COMPANY_API_KEY",
+  "egress": {
+    "mode": "system",
+    "dns_mode": "system"
+  }
+}

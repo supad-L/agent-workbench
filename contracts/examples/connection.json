@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "connection_id": "company",
+  "label": "公司 Messages 中转（合成示例）",
+  "execution": "direct_api",
+  "protocol": "messages",
+  "address": "https://model.company.invalid/v1/messages",
+  "address_kind": "endpoint",
+  "auth_kind": "bearer",
+  "credential_ref": "secret-reference-only",
+  "account_resource_id": "account-1",
+  "model_ids": [
+    "company-model"
+  ],
+  "egress": {
+    "mode": "system",
+    "dns_mode": "system"
+  },
+  "max_concurrent": 1
+}

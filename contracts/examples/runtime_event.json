@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "project_id": "PROJECT-1",
+  "task_id": "TASK-1",
+  "attempt_id": "ATTEMPT-1",
+  "lease_epoch": 1,
+  "sequence": 1,
+  "type": "text_delta",
+  "payload": {
+    "text": "正在读取任务上下文"
+  }
+}

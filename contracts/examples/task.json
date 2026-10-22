@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "TASK-1",
+  "project_id": "PROJECT-1",
+  "plan_version": 1,
+  "plan_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "contract_revision": 1,
+  "role_id": "backend",
+  "objective": "实现固定重试策略",
+  "requirement_ids": [
+    "REQ-1"
+  ],
+  "basis_ids": [
+    "AC-1",
+    "ENG-1"
+  ],
+  "base_commit": "synthetic-base",
+  "environment_id": "fixture-env",
+  "depends_on": [],
+  "scope": {
+    "read_paths": [
+      "."
+    ],
+    "write_dirs": [
+      "backend/"
+    ],
+    "patch_only_paths": []
+  },
+  "non_goals": [
+    "人工审批节点"
+  ],
+  "verification_profile": "verify-1",
+  "verification_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "resource_keys": [],
+  "max_review_rounds": 3
+}

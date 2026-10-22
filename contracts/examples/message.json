@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "MSG-1",
+  "project_id": "PROJECT-1",
+  "task_id": "TASK-1",
+  "attempt_id": "ATTEMPT-1",
+  "plan_version": 1,
+  "contract_revision": 1,
+  "project_run_epoch": 1,
+  "task_epoch": 1,
+  "lease_epoch": 1,
+  "sender_id": "worker-1",
+  "recipient_id": "coordinator-1",
+  "kind": "task.question",
+  "idempotency_key": "question-once-1",
+  "payload": {
+    "question_id": "Q-1",
+    "question": "两份文档对最终失败行为规定不同，应该采用哪一个？",
+    "basis_ids": [
+      "REQ-1"
+    ]
+  }
+}

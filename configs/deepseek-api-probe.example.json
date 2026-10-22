@@ -1,0 +1,16 @@
+{
+  "endpoint": {
+    "protocol": "chat_completions",
+    "address": "https://api.deepseek.com/chat/completions",
+    "address_kind": "endpoint",
+    "allow_local_http": false
+  },
+  "model": "deepseek-flash",
+  "chat_dialect": "deepseek",
+  "auth_kind": "bearer",
+  "key_env": "AWB_DEEPSEEK_API_KEY",
+  "egress": {
+    "mode": "system",
+    "dns_mode": "system"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "project_id": "PROJECT-1",
+  "version": 1,
+  "title": "自动任务",
+  "requirements": [
+    {
+      "id": "REQ-1",
+      "text": "失败自动重试两次并记录最终结果"
+    }
+  ],
+  "engineering_constraints": [
+    {
+      "id": "ENG-1",
+      "text": "满足固定验证，不改变现有兼容行为"
+    }
+  ],
+  "non_goals": [
+    "人工审批节点"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "requirement_ids": [
+        "REQ-1"
+      ],
+      "description": "失败时恰好重试两次",
+      "verification_profile": "verify-1"
+    }
+  ],
+  "autonomy": {
+    "ordinary_tasks": "automatic",
+    "unresolved_questions": "ask_user",
+    "product_changes": "user_confirmed"
+  }
+}

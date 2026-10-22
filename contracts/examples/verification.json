@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "profile_id": "verify-1",
+  "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "runner_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "test_bundle_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "config_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "argv": [
+    [
+      "/trusted/runner",
+      "--case",
+      "retry"
+    ]
+  ],
+  "acceptance_ids": [
+    "AC-1"
+  ],
+  "candidate_scripts_are_authoritative": false
+}

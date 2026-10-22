@@ -1,0 +1,12 @@
+{
+  "date": "2026-10-22",
+  "kind": "development_reference_only",
+  "runtime_authorization": false,
+  "confirmation_source": "用户明确确认当前方案并授权开始编码",
+  "sha256": {
+    "README.md": "9d093a4c814fa701246c8019a9c9743e401661be1e8fb0fa48ac04d59c68687a",
+    "DESIGN.md": "c18cde6d8d24a5c73549b76033e95218d19ea5acff1c8246545fcd8f2dcd99f4",
+    "DELIVERY.md": "d8aa90816e67a090a60b9e7d6a93169a1b4e23a016eb879ce42fe17b48841464",
+    "AGENT-PROTOCOLS.md": "ee79ceb003492b60fc38150206a9064221c159453dd1ee199d99366139855e73"
+  }
+}
