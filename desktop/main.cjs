@@ -7,6 +7,15 @@ const dataDir=argument?path.resolve(argument.slice('--data-dir='.length)):(proce
 app.setPath('userData',dataDir);
 let backend,endpoint,humanToken,window,stream,quitting=false;let connections;
 const indexFile=path.join(root,'web','dist','index.html');const indexURL=pathToFileURL(indexFile).href;
+// This checks the application's own startup handshake, without UI automation.
+const smokeCheck=process.argv.includes('--smoke-check');
+const startupOperations=new Set();let loaded=false,smokeTimer;
+function checkStartup(){
+ if(!smokeCheck||!loaded||!startupOperations.has('meta')||!startupOperations.has('projects.list'))return;
+ clearTimeout(smokeTimer);
+ process.stdout.write(JSON.stringify({check:'desktop_startup',status:'passed',packaged:app.isPackaged,renderer_ready:true,backend_health:'ok'})+'\n');
+ app.quit();
+}
 
 async function startBackend(){
  const binary=app.isPackaged?path.join(process.resourcesPath,'bin','agent-workbench'):path.join(root,'bin','agent-workbench');
@@ -14,7 +23,7 @@ async function startBackend(){
  backend=spawn(binary,['serve','--data-dir',path.join(dataDir,'state')],{stdio:['ignore','pipe','pipe'],windowsHide:true});
  let safeError='';backend.stderr.on('data',chunk=>{safeError=(safeError+chunk.toString()).slice(-2048);});
  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('本地服务启动超时')),15000);const reader=readline.createInterface({input:backend.stdout});reader.once('line',line=>{clearTimeout(timer);try{const ready=JSON.parse(line);if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(ready.url)||typeof ready.human_token!=='string')throw new Error();endpoint=ready.url;humanToken=ready.human_token;resolve();}catch{reject(new Error('本地服务返回了无效的启动信息'));}});backend.once('error',error=>{clearTimeout(timer);reject(new Error('无法启动本地服务：'+error.code));});backend.once('exit',()=>{clearTimeout(timer);reject(new Error(safeError||'本地服务已退出'));});});
- backend.on('exit',()=>{if(!quitting&&window){dialog.showErrorBox('本地服务已停止','请重新打开工作台，已有数据会保留。');app.quit();}});
+ backend.on('exit',()=>{if(!quitting&&window){if(smokeCheck)process.stderr.write('本地服务已停止\n');else dialog.showErrorBox('本地服务已停止','请重新打开工作台，已有数据会保留。');app.quit();}});
 }
 async function request(method,route,body,signal){
  const response=await fetch(endpoint+route,{method,headers:{Authorization:'Bearer '+humanToken,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal});
@@ -49,7 +58,8 @@ async function invoke(operation,payload,sender){
   await request('POST','/api/connections/check',payload.config);const prepared=connections.prepare(payload);
   if(prepared.entry.config.egress.mode==='explicit_proxy'&&!prepared.entry.secrets.proxy)throw new Error('请填写出口代理 URL');
   if(prepared.entry.config.egress.mode==='explicit_proxy')await request('POST','/api/proxies/validate',{url:prepared.entry.secrets.proxy});
-  if(operation==='connections.save')return connections.savePrepared(prepared);
+  // Re-read revisions after asynchronous validation, before the synchronous write.
+  if(operation==='connections.save')return connections.savePrepared(connections.prepare(payload));
   return request('POST','/api/connections/test',{config:prepared.entry.config,values:connections.values(prepared.entry)});
  }
  default:throw new Error('操作不受支持');
@@ -61,11 +71,22 @@ const single=app.requestSingleInstanceLock();if(!single)app.quit();else{
  app.whenReady().then(async()=>{
   await startBackend();connections=new ConnectionStore(dataDir,safeStorage);
   const icon=nativeImage.createFromPath(path.join(root,'assets','app.png'));if(app.dock)app.dock.setIcon(icon);
-  window=new BrowserWindow({width:1320,height:900,minWidth:960,minHeight:680,title:'Agent Workbench',backgroundColor:'#f3f6fa',icon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false}});
+  window=new BrowserWindow({show:!smokeCheck,width:1320,height:900,minWidth:960,minHeight:680,title:'Agent Workbench',backgroundColor:'#f3f6fa',icon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false}});
   window.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());window.webContents.on('will-attach-webview',event=>event.preventDefault());
-  ipcMain.handle('workbench:invoke',async(event,operation,payload)=>{try{if(event.sender!==window.webContents||event.senderFrame?.url.split('#')[0]!==indexURL)throw new Error('此页面没有桌面操作权限');return {ok:true,value:await invoke(operation,payload||{},event.sender)};}catch(error){return {ok:false,error:error.message||'操作失败'};}});
+  ipcMain.handle('workbench:invoke',async(event,operation,payload)=>{try{if(event.sender!==window.webContents||event.senderFrame?.url.split('#')[0]!==indexURL)throw new Error('此页面没有桌面操作权限');const value=await invoke(operation,payload||{},event.sender);startupOperations.add(operation);setImmediate(checkStartup);return {ok:true,value};}catch(error){return {ok:false,error:error.message||'操作失败'};}});
+  if(smokeCheck)smokeTimer=setTimeout(()=>{process.stderr.write('桌面启动握手超时\n');app.quit();},15000);
   await window.loadFile(indexFile);
- }).catch(error=>{dialog.showErrorBox('工作台启动失败',error.message);app.quit();});
+  loaded=true;checkStartup();
+ }).catch(error=>{if(smokeCheck){process.stderr.write('桌面启动检查失败：'+error.message+'\n');process.exitCode=1;}else dialog.showErrorBox('工作台启动失败',error.message);app.quit();});
  process.once('SIGTERM',()=>app.quit());process.once('SIGINT',()=>app.quit());
- app.on('before-quit',()=>{quitting=true;stopEvents();if(backend)backend.kill('SIGTERM');});app.on('window-all-closed',()=>app.quit());
+ app.on('before-quit',event=>{
+  if(quitting)return;
+  quitting=true;clearTimeout(smokeTimer);stopEvents();
+  if(backend&&backend.exitCode===null&&backend.signalCode===null){
+   event.preventDefault();
+   const timeout=setTimeout(()=>{backend.kill('SIGKILL');app.exit(1);},5000);
+   backend.once('exit',()=>{clearTimeout(timeout);app.quit();});
+   backend.kill('SIGTERM');
+  }
+ });app.on('window-all-closed',()=>app.quit());
 }
