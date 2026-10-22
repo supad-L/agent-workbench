@@ -41,6 +41,8 @@ func run(ctx context.Context, args []string, w io.Writer) error {
 		return errors.New("usage: agent-workbench doctor | protocol-probe | contracts-check | network-probe | sandbox-probe --image LOCAL_IMAGE | api-probe --config FILE")
 	}
 	switch args[0] {
+	case "serve":
+		return serve(ctx, args[1:], w)
 	case "api-probe":
 		flags := flag.NewFlagSet("api-probe", flag.ContinueOnError)
 		flags.SetOutput(io.Discard)

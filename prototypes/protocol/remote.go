@@ -12,7 +12,15 @@ import (
 // Configured runs a no-project-data, no-side-effect probe against an explicit model connection.
 // Its caller must obtain credentials and routing policy only from explicit user configuration.
 func Configured(ctx context.Context, client modelruntime.Model, model string, p connection.Protocol) (Report, error) {
-	request := modelruntime.Request{Model: model, System: "This is a connectivity test. Call the probe tool with value 42, then briefly confirm the tool result. Do not request other tools.", MaxOutputTokens: 256, Messages: []modelruntime.Message{{Role: "user", Text: "Call probe with value 42."}}, Tools: []modelruntime.Tool{{Name: "probe", Description: "Returns the provided integer for a connectivity test; has no external side effects.", Parameters: json.RawMessage(`{"type":"object","properties":{"value":{"type":"integer"}},"required":["value"],"additionalProperties":false}`)}}}
+	return ConfiguredWithLimit(ctx, client, model, p, 256)
+}
+
+// ConfiguredWithLimit uses an explicit bounded output limit for a live tool probe.
+func ConfiguredWithLimit(ctx context.Context, client modelruntime.Model, model string, p connection.Protocol, limit int) (Report, error) {
+	if limit < 1 || limit > 4096 {
+		return Report{}, errors.New("invalid probe output limit")
+	}
+	request := modelruntime.Request{Model: model, System: "This is a connectivity test. Call the probe tool with value 42, then briefly confirm the tool result. Do not request other tools.", MaxOutputTokens: limit, Messages: []modelruntime.Message{{Role: "user", Text: "Call probe with value 42."}}, Tools: []modelruntime.Tool{{Name: "probe", Description: "Returns the provided integer for a connectivity test; has no external side effects.", Parameters: json.RawMessage(`{"type":"object","properties":{"value":{"type":"integer"}},"required":["value"],"additionalProperties":false}`)}}}
 	first, err := client.Turn(ctx, request, nil)
 	if err != nil {
 		return Report{}, err
