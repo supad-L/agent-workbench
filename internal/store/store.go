@@ -138,18 +138,45 @@ func Open(ctx context.Context, directory string) (*Store, error) {
 		return nil, errors.Join(err, lock.Close())
 	}
 	db.SetMaxOpenConns(1)
-	if _, err = db.ExecContext(ctx, migration); err != nil {
+	if err = migrate(ctx, db); err != nil {
 		return nil, errors.Join(err, db.Close(), lock.Close())
-	}
-	var version int
-	if err = db.QueryRowContext(ctx, "SELECT MAX(version) FROM schema_migrations").Scan(&version); err != nil || version != 1 {
-		return nil, errors.Join(errors.New("数据库版本不受支持"), err, db.Close(), lock.Close())
 	}
 	validator, err := contracts.New()
 	if err != nil {
 		return nil, errors.Join(err, db.Close(), lock.Close())
 	}
 	return &Store{db: db, lock: lock, validator: validator, changed: make(chan struct{})}, nil
+}
+
+// migrate checks compatibility before changing any schema and commits atomically.
+func migrate(ctx context.Context, db *sql.DB) (err error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			err = errors.Join(err, rollbackErr)
+		}
+	}()
+	var exists, version int
+	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'").Scan(&exists); err != nil {
+		return err
+	}
+	if exists != 0 {
+		if err = tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(version),0) FROM schema_migrations").Scan(&version); err != nil {
+			return err
+		}
+	}
+	if version < 0 || version > 1 {
+		return errors.New("数据库版本不受支持")
+	}
+	if version == 0 {
+		if _, err = tx.ExecContext(ctx, migration); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // Close releases SQLite and the single-instance lock.

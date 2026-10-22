@@ -1,4 +1,4 @@
-// Command agent-workbench exposes M0 probes. It does not yet start production tasks.
+// Command agent-workbench runs the local M1 service and explicit development probes.
 package main
 
 import (
@@ -38,7 +38,7 @@ func output(w io.Writer, value any) error {
 
 func run(ctx context.Context, args []string, w io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: agent-workbench doctor | protocol-probe | contracts-check | network-probe | sandbox-probe --image LOCAL_IMAGE | api-probe --config FILE")
+		return errors.New("usage: agent-workbench serve --data-dir ABSOLUTE_PATH | doctor | protocol-probe | contracts-check | network-probe | sandbox-probe --image LOCAL_IMAGE | api-probe --config FILE")
 	}
 	switch args[0] {
 	case "serve":

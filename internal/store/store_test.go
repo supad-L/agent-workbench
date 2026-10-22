@@ -3,12 +3,42 @@ package store
 import (
 	"agent-workbench/contracts"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
 )
+
+func TestFutureSchemaIsRejectedWithoutMigration(t *testing.T) {
+	directory := t.TempDir()
+	db, err := sql.Open("sqlite3", filepath.Join(directory, "workbench.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := db.Exec("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY); INSERT INTO schema_migrations VALUES(2)"); err != nil {
+		t.Fatal(err)
+	}
+	if opened, err := Open(context.Background(), directory); err == nil {
+		if closeErr := opened.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+		t.Fatal("future schema accepted")
+	}
+	var changed int
+	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version != 2").Scan(&changed); err != nil || changed != 0 {
+		t.Fatal("unsupported schema history was modified", changed, err)
+	}
+	if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE name='projects'").Scan(&changed); err != nil || changed != 0 {
+		t.Fatal("tables created in unsupported database", changed, err)
+	}
+}
 
 func setup(t *testing.T) (*Store, Principal, Project) {
 	t.Helper()

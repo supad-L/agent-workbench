@@ -67,7 +67,10 @@ func (a *Server) Handler() http.Handler {
 			reply(w, map[string]any{"status": "ok", "schema_version": 1, "stage": "M1"})
 			return
 		}
-		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if !bearer {
+			token = ""
+		}
 		var p store.Principal
 		if subtle.ConstantTimeCompare([]byte(token), []byte(a.HumanToken)) == 1 {
 			p = store.Principal{ID: "desktop-human", Role: "human"}

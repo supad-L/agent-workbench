@@ -35,6 +35,19 @@ func local(t *testing.T) (*Server, *httptest.Server) {
 	t.Cleanup(s.Close)
 	return a, s
 }
+
+func TestAuthorizationRequiresBearerScheme(t *testing.T) {
+	a, _ := local(t)
+	for _, header := range []string{a.HumanToken, "Basic " + a.HumanToken, ""} {
+		request := httptest.NewRequest(http.MethodGet, "/api/projects", nil)
+		request.Header.Set("Authorization", header)
+		response := httptest.NewRecorder()
+		a.Handler().ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("malformed authorization accepted: %d", response.Code)
+		}
+	}
+}
 func TestDesktopM1ProjectDocumentDraftEditingAndErrorRoutes(t *testing.T) {
 	a, s := local(t)
 	token := a.HumanToken
