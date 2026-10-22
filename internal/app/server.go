@@ -4,6 +4,7 @@ package app
 import (
 	"agent-workbench/contracts"
 	"agent-workbench/internal/apiconfig"
+	"agent-workbench/internal/egress"
 	"agent-workbench/internal/project"
 	"agent-workbench/internal/runtime/direct"
 	"agent-workbench/internal/store"
@@ -76,7 +77,9 @@ func (a *Server) Handler() http.Handler {
 			a.mu.Unlock()
 		}
 		if p.ID == "" {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(401)
+			reply(w, map[string]string{"error": "需要有效的本地工作台身份"})
 			return
 		}
 		a.mux.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey{}, p)))
@@ -134,6 +137,25 @@ func replyError(w http.ResponseWriter, err error) {
 func human(r *http.Request) bool { return principal(r).Role == "human" }
 
 func (a *Server) routes() {
+	a.mux.HandleFunc("POST /api/proxies/validate", func(w http.ResponseWriter, r *http.Request) {
+		if !human(r) {
+			replyError(w, store.ErrForbidden)
+			return
+		}
+		var b struct {
+			URL string `json:"url"`
+		}
+		if err := decode(w, r, &b); err != nil {
+			replyError(w, err)
+			return
+		}
+		endpoint, secret, err := egress.ParseProxy(egress.ProxyInput{URL: b.URL})
+		if err != nil {
+			replyError(w, err)
+			return
+		}
+		reply(w, map[string]any{"scheme": endpoint.Scheme, "host": endpoint.Host, "port": endpoint.Port, "authentication_configured": secret.Configured()})
+	})
 	a.mux.HandleFunc("GET /api/projects", func(w http.ResponseWriter, r *http.Request) {
 		v, err := a.Store.Projects(r.Context(), principal(r))
 		if err != nil {
