@@ -495,6 +495,13 @@ func (s *Store) ConfirmPlan(ctx context.Context, p Principal, project, key strin
 		if v.Status != "draft" || v.Revision != revision || v.Hash != hash {
 			return nil, ErrConflict
 		}
+		var active int
+		if err = tx.QueryRowContext(ctx, "SELECT active_version FROM projects WHERE id=?", project).Scan(&active); err != nil {
+			return nil, err
+		}
+		if active != v.BaseVersion {
+			return nil, ErrConflict
+		}
 		if _, err = tx.ExecContext(ctx, "UPDATE plan_versions SET status='confirmed' WHERE project_id=? AND version=?", project, version); err != nil {
 			return nil, err
 		}

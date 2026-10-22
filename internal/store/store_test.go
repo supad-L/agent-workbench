@@ -219,3 +219,27 @@ func TestRestartAndSingleInstanceLock(t *testing.T) {
 		t.Fatal("event replay lost", err)
 	}
 }
+
+func TestCompetingDraftCannotReplaceChangedBaseline(t *testing.T) {
+	s, human, p := setup(t)
+	ctx := context.Background()
+	raw, err := s.CreatePlan(ctx, human, p.ID, "v1", "", 0, content(t))
+	v1 := planResult(t, raw, err)
+	if _, err = s.ConfirmPlan(ctx, human, p.ID, "confirm-v1", v1.Version, v1.Revision, v1.Hash); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = s.CreatePlan(ctx, human, p.ID, "v2", "需求变更 A", 1, content(t))
+	v2 := planResult(t, raw, err)
+	raw, err = s.CreatePlan(ctx, human, p.ID, "v3", "需求变更 B", 1, content(t))
+	v3 := planResult(t, raw, err)
+	if _, err = s.ConfirmPlan(ctx, human, p.ID, "confirm-v2", v2.Version, v2.Revision, v2.Hash); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.ConfirmPlan(ctx, human, p.ID, "stale-v3", v3.Version, v3.Revision, v3.Hash); !errors.Is(err, ErrConflict) {
+		t.Fatal("draft based on V1 replaced already adopted V2", err)
+	}
+	current, err := s.Project(ctx, human, p.ID)
+	if err != nil || current.ActiveVersion != 2 {
+		t.Fatal("current plan changed after stale confirmation", err)
+	}
+}
