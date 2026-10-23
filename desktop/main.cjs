@@ -11,9 +11,10 @@ let codexAccount;
 const indexFile=path.join(root,'web','dist','index.html');const indexURL=pathToFileURL(indexFile).href;
 // This checks the application's own startup handshake, without UI automation.
 const smokeCheck=process.argv.includes('--smoke-check');
-const startupOperations=new Set();let loaded=false,smokeTimer;
+const startupOperations=new Set();let loaded=false,startupReported=false,smokeTimer;
 function checkStartup(){
- if(!smokeCheck||!loaded||!startupOperations.has('meta')||!startupOperations.has('projects.list'))return;
+ if(!smokeCheck||startupReported||!loaded||!startupOperations.has('meta')||!startupOperations.has('projects.list'))return;
+ startupReported=true;
  clearTimeout(smokeTimer);
  process.stdout.write(JSON.stringify({check:'desktop_startup',status:'passed',packaged:app.isPackaged,renderer_ready:true,backend_health:'ok'})+'\n');
  app.quit();
