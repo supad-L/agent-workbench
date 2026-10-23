@@ -69,6 +69,23 @@ def main():
                 with urllib.request.urlopen(req, timeout=8) as response:
                     return json.load(response)
 
+            def read_run_events(project, run_id):
+                req = urllib.request.Request(base + f"/api/projects/{project}/events?cursor=0", headers={"Authorization": "Bearer " + token})
+                events = []
+                with urllib.request.urlopen(req, timeout=8) as response:
+                    while True:
+                        line = response.readline().decode()
+                        if not line:
+                            raise AssertionError("event stream closed before run.finished")
+                        if not line.startswith("data: "):
+                            continue
+                        event = json.loads(line[6:])
+                        if event.get("payload", {}).get("run_id") != run_id:
+                            continue
+                        events.append(event)
+                        if event["kind"] == "run.finished":
+                            return events
+
             def finish(project, run):
                 deadline = time.monotonic() + 8
                 while run["status"] == "running" and time.monotonic() < deadline:
@@ -93,6 +110,11 @@ def main():
                 run = finish(project, call("POST", f"/api/projects/{project}/runs", body))
                 assert run["status"] == "completed" and run["state"]["text"] == "M2 只读试运行通过" and len(requests) == 2
                 checks.append("实际 HTTP 流式工具循环与只读能力过滤")
+                run_events = read_run_events(project, run["id"])
+                progress = [event["payload"].get("type") for event in run_events if event["kind"] == "run.progress"]
+                assert "tool_started" in progress and "tool_finished" in progress and "turn_finished" in progress
+                assert [event["sequence"] for event in run_events] == sorted({event["sequence"] for event in run_events})
+                assert "M2_SYNTHETIC_PRIVATE_VALUE_DO_NOT_PERSIST" not in json.dumps(run_events)
                 assert call("POST", f"/api/projects/{project}/runs", body)["id"] == run["id"] and len(requests) == 2
                 usage = call("GET", "/api/usage")["summaries"][0]
                 assert usage["cost_micros"] == 30 and usage["held_micros"] == 0
@@ -117,6 +139,10 @@ def main():
                 assert restored["status"] == "completed" and len(requests) == 4
                 assert len(call("GET", "/api/roles")) == 1
                 checks.append("服务重启恢复、无自动重复请求、凭证值未写入 SQLite")
+                replayed = read_run_events(project, run["id"])
+                assert [event["sequence"] for event in replayed] == [event["sequence"] for event in run_events]
+                assert len(requests) == 4
+                checks.append("持久工具进度与终态事件按序回放，重启订阅不重复模型请求")
             finally:
                 stop()
     finally:
