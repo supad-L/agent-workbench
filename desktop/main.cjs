@@ -1,6 +1,7 @@
-const {app,BrowserWindow,ipcMain,dialog,safeStorage,nativeImage,shell}=require('electron');
+const {app,BrowserWindow,ipcMain,dialog,safeStorage,nativeImage,shell,nativeTheme}=require('electron');
 const path=require('node:path');const fs=require('node:fs');const {pathToFileURL}=require('node:url');const {spawn}=require('node:child_process');const readline=require('node:readline');const {setTimeout:delay}=require('node:timers/promises');const {ConnectionStore}=require('./connections.cjs');
 const {CodexAccount,claudeReadiness}=require('./native-accounts.cjs');
+const {applyAppearance}=require('./appearance.cjs');
 app.setName('Agent Workbench');
 const root=path.resolve(__dirname,'..');
 const argument=process.argv.find(value=>value.startsWith('--data-dir='));
@@ -51,6 +52,7 @@ function startEvents(id,sender){stopEvents();const controller=new AbortControlle
 async function invoke(operation,payload,sender){
  if(Buffer.byteLength(JSON.stringify(payload||{}))>1048576)throw new Error('操作内容过大');
  switch(operation){
+ case 'appearance.set':return applyAppearance(payload.source,{nativeTheme,window});
  case 'meta':{const health=await request('GET','/healthz');return {version:app.getVersion(),stage:health.stage,dataDir,platform:process.platform,health:health.status};}
  case 'choose.directory':{const selected=await dialog.showOpenDialog(window,{title:'选择要导入的项目目录',properties:['openDirectory']});return selected.canceled?null:selected.filePaths[0];}
  case 'choose.document':{const selected=await dialog.showOpenDialog(window,{title:'选择项目资料',properties:['openFile'],filters:[{name:'项目资料',extensions:['md','markdown','txt','pdf']}]});return selected.canceled?null:selected.filePaths[0];}
@@ -111,7 +113,8 @@ const single=app.requestSingleInstanceLock();if(!single)app.quit();else{
   await startBackend();connections=new ConnectionStore(dataDir,safeStorage);
   codexAccount=new CodexAccount(dataDir,{openExternal:url=>shell.openExternal(url)});
   const icon=nativeImage.createFromPath(path.join(root,'assets','app.png'));if(app.dock)app.dock.setIcon(icon);
-  window=new BrowserWindow({show:!smokeCheck,width:1320,height:900,minWidth:960,minHeight:680,title:'Agent Workbench',backgroundColor:'#f3f6fa',icon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false}});
+  window=new BrowserWindow({show:false,width:1320,height:900,minWidth:960,minHeight:680,title:'Agent Workbench',backgroundColor:nativeTheme.shouldUseDarkColors?'#0e1622':'#f3f6fa',icon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false}});
+  window.once('ready-to-show',()=>{if(!smokeCheck)window.show()});
   window.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());window.webContents.on('will-attach-webview',event=>event.preventDefault());
   ipcMain.handle('workbench:invoke',async(event,operation,payload)=>{try{if(event.sender!==window.webContents||event.senderFrame?.url.split('#')[0]!==indexURL)throw new Error('此页面没有桌面操作权限');const value=await invoke(operation,payload||{},event.sender);startupOperations.add(operation);setImmediate(checkStartup);return {ok:true,value};}catch(error){return {ok:false,error:error.message||'操作失败'};}});
   if(smokeCheck)smokeTimer=setTimeout(()=>{process.stderr.write('桌面启动握手超时\n');app.quit();},15000);
