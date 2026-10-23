@@ -154,7 +154,7 @@ func (a *Server) routes() {
 		}
 		endpoint, secret, err := egress.ParseProxy(egress.ProxyInput{URL: b.URL})
 		if err != nil {
-			replyError(w, err)
+			replyError(w, errors.New("出口代理格式无效，请填写 HTTP、HTTPS 或 SOCKS5 URL，包含主机、端口及必要的认证信息"))
 			return
 		}
 		reply(w, map[string]any{"scheme": endpoint.Scheme, "host": endpoint.Host, "port": endpoint.Port, "authentication_configured": secret.Configured()})

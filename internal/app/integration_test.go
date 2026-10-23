@@ -177,9 +177,9 @@ func TestCustomCompanyAPIsUseSelectedProtocolAndSecretHeaders(t *testing.T) {
 			if status != 200 || strings.Contains(string(raw), "synthetic-proxy-pass") || strings.Contains(string(raw), "user") {
 				t.Fatal("proxy validator leaked credentials", status, string(raw))
 			}
-			status, _ = call(t, s, a.HumanToken, "POST", "/api/proxies/validate", map[string]string{"url": "missing-protocol"})
-			if status != 400 {
-				t.Fatal("invalid proxy accepted")
+			status, raw = call(t, s, a.HumanToken, "POST", "/api/proxies/validate", map[string]string{"url": "http://synthetic-user:synthetic-pass@proxy.example:not-a-port"})
+			if status != 400 || !strings.Contains(string(raw), "代理") || strings.Contains(string(raw), "synthetic-pass") || strings.Contains(string(raw), "synthetic-user") {
+				t.Fatal("invalid proxy accepted or error was not localized and redacted")
 			}
 		})
 	}
