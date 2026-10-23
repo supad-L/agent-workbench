@@ -9,6 +9,7 @@ function encryption() {
   const key = crypto.randomBytes(32);
   return {
     isAsyncEncryptionAvailable: async () => true,
+    getSelectedStorageBackend:()=> 'gnome_libsecret',
     encryptStringAsync: async text => {
       const iv = crypto.randomBytes(12), cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
       const bytes = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
@@ -62,7 +63,7 @@ test('拒绝系统加密缺失和 Linux 明文后端，失败不覆盖已有文�
   const { directory, cipher, store } = fixture(t);
   const saved = await store.save({ label: '保留原配置', config, key: 'SYNTHETIC' });
   const previous = fs.readFileSync(store.file);
-  const plaintext = new ConnectionStore(directory, { ...cipher, getSelectedStorageBackend: () => 'basic_text' });
+  const plaintext = new ConnectionStore(directory, { ...cipher, getSelectedStorageBackend: () => 'basic_text' },'linux');
   await assert.rejects(plaintext.save({ ...saved, label: '不可保存' }), /尚未就绪/);
   assert.deepEqual(fs.readFileSync(store.file), previous);
 });

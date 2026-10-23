@@ -4,10 +4,11 @@ const crypto = require('node:crypto');
 
 // A single queue owns credential updates, including OS key rotation rewrites.
 class ConnectionStore {
-  constructor(directory, encryption) {
+  constructor(directory, encryption, platform = process.platform) {
     this.directory = directory;
     this.file = path.join(directory, 'connections.enc');
     this.encryption = encryption;
+    this.platform = platform;
     this.pending = Promise.resolve();
   }
   exclusive(operation) {
@@ -33,7 +34,7 @@ class ConnectionStore {
     return state;
   }
   async write(state) {
-    if (!await this.encryption.isAsyncEncryptionAvailable() || this.encryption.getSelectedStorageBackend?.() === 'basic_text') throw new Error('系统凭证加密尚未就绪，连接没有保存。');
+    if (!await this.encryption.isAsyncEncryptionAvailable() || this.platform === 'linux' && ['basic_text', 'unknown'].includes(this.encryption.getSelectedStorageBackend?.() || 'unknown')) throw new Error('系统凭证加密尚未就绪，连接没有保存。');
     const encrypted = await this.encryption.encryptStringAsync(JSON.stringify(state));
     await fs.mkdir(this.directory, { recursive: true, mode: 0o700 });
     const temporary = this.file + '.' + crypto.randomUUID() + '.tmp';

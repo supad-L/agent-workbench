@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { App, Alert, Avatar, Button, Card, Checkbox, Collapse, Drawer, Empty, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Tag } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
 import { api } from './api';
+import RoleTrial from './role-trial';
 
 type Choice = { connection_id: string; model_id: string };
 type Role = {
@@ -31,6 +32,7 @@ export default function Roles() {
   const [tools, setTools] = useState<string[]>([]);
   const [editing, setEditing] = useState<Role>();
   const [open, setOpen] = useState(false);
+  const [trial,setTrial]=useState<Role>();
   const [busy, setBusy] = useState(false);
   const [form] = Form.useForm();
   const selectedConnection = Form.useWatch('connection_id', form);
@@ -86,6 +88,7 @@ export default function Roles() {
       {roles.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="从下方模板开始，或新建自己的角色" /> :
         <div className="role-grid">{roles.map(role => {
           const connection = bound(role);
+          const model=connection?.models?.find((item:any)=>item.id===role.primary.model_id);
           return <Card key={role.id} className={`role-card role-${role.kind}`}>
             <div className="role-card-heading"><Avatar className="role-avatar" icon={<TeamOutlined aria-hidden="true" />} /><div><h3>{role.name}</h3><Tag>{kinds.find(kind => kind.value === role.kind)?.label}</Tag></div>
               <Tag color={role.enabled ? 'green' : 'default'}>{role.enabled ? '已启用' : '已停用'}</Tag></div>
@@ -93,7 +96,9 @@ export default function Roles() {
             <dl className="role-binding"><dt>连接</dt><dd>{connection?.label || '未绑定'}</dd><dt>模型</dt><dd>{role.primary.model_id || '未选择'}</dd></dl>
             <div className="role-tool-list">{role.tools.slice(0, 4).map(tool => <Tag key={tool}>{labels[tool] || tool}</Tag>)}{role.tools.length > 4 && <Tag>另 {role.tools.length - 4} 项</Tag>}</div>
             {role.enabled && connection?.enabled === false && <Alert type="warning" title="绑定连接已停用，角色暂不可运行" />}
+            {role.enabled&&connection&&!model&&<Alert type="warning" title="绑定模型已移除，请重新选择模型"/>}
             <div className="role-card-footer"><small>{role.fallback.enabled ? '已配置备用策略' : '自动切换关闭'} · 修订 {role.revision}</small><Space>
+              <Button disabled={!role.enabled||!connection||connection.enabled===false||!model} onClick={()=>setTrial(role)}>试运行</Button>
               <Button icon={<EditOutlined aria-hidden="true" />} onClick={() => edit(role)}>编辑</Button>
               <Popconfirm title={`删除角色“${role.name}”？`} description="已有运行记录会保留。" onConfirm={() => remove(role)} okText="删除" cancelText="取消"><Button aria-label={`删除${role.name}`} icon={<DeleteOutlined aria-hidden="true" />} /></Popconfirm>
             </Space></div>
@@ -124,5 +129,6 @@ export default function Roles() {
         </> }]} />
       </Form>
     </Drawer>
+    {trial&&<RoleTrial role={trial} onClose={()=>setTrial(undefined)}/>}
   </>;
 }
