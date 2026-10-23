@@ -31,6 +31,11 @@ async function request(method,route,body,signal){
 }
 function projectID(payload){if(typeof payload.id!=='string'||!/^[A-Za-z0-9_-]{1,64}$/.test(payload.id))throw new Error('项目编号无效');return encodeURIComponent(payload.id);}
 function stopEvents(){if(stream)stream.abort();stream=null;}
+async function syncConnections(){
+ const entries=await connections.list();
+ for(const entry of entries)await request('PUT','/api/connections/'+encodeURIComponent(entry.id),connections.projection(entry));
+ return entries;
+}
 function startEvents(id,sender){stopEvents();const controller=new AbortController();stream=controller;let cursor=0;(async()=>{while(!controller.signal.aborted){try{
  const response=await fetch(`${endpoint}/api/projects/${id}/events?cursor=${cursor}`,{headers:{Authorization:'Bearer '+humanToken},signal:controller.signal});if(!response.ok)throw new Error('事件连接失败');let buffer='';const decoder=new TextDecoder();for await(const part of response.body){buffer+=decoder.decode(part,{stream:true});if(buffer.length>1048576)throw new Error('事件帧过大');let index;while((index=buffer.indexOf('\n\n'))!==-1){const frame=buffer.slice(0,index);buffer=buffer.slice(index+2);const data=frame.split('\n').find(line=>line.startsWith('data: '));if(data){const event=JSON.parse(data.slice(6));if(event.sequence>cursor){cursor=event.sequence;if(!sender.isDestroyed())sender.send('workbench:event',event);}}}}
  }catch{if(controller.signal.aborted)break;}try{await delay(600,undefined,{signal:controller.signal});}catch{break;}}})();return {subscribed:true};}
@@ -38,7 +43,7 @@ function startEvents(id,sender){stopEvents();const controller=new AbortControlle
 async function invoke(operation,payload,sender){
  if(Buffer.byteLength(JSON.stringify(payload||{}))>1048576)throw new Error('操作内容过大');
  switch(operation){
- case 'meta':{const health=await request('GET','/healthz');return {version:app.getVersion(),stage:'M1',dataDir,platform:process.platform,health:health.status};}
+ case 'meta':{const health=await request('GET','/healthz');return {version:app.getVersion(),stage:health.stage,dataDir,platform:process.platform,health:health.status};}
  case 'choose.directory':{const selected=await dialog.showOpenDialog(window,{title:'选择要导入的项目目录',properties:['openDirectory']});return selected.canceled?null:selected.filePaths[0];}
  case 'choose.document':{const selected=await dialog.showOpenDialog(window,{title:'选择项目资料',properties:['openFile'],filters:[{name:'项目资料',extensions:['md','markdown','txt','pdf']}]});return selected.canceled?null:selected.filePaths[0];}
  case 'projects.list':return request('GET','/api/projects');
@@ -52,14 +57,20 @@ async function invoke(operation,payload,sender){
  case 'permission.demo':return request('POST',`/api/projects/${projectID(payload)}/permission-demo`,{});
  case 'events.start':return startEvents(projectID(payload),sender);
  case 'events.stop':stopEvents();return {};
- case 'connections.list':return connections.list();
+ case 'connections.list':return syncConnections();
+ case 'roles.list':await syncConnections();return request('GET','/api/roles');
+ case 'roles.templates':return request('GET','/api/role-templates');
+ case 'roles.save':{const id=projectID({id:payload.role?.id});await syncConnections();return request('PUT','/api/roles/'+id,payload.role);}
+ case 'roles.delete':return request('DELETE',`/api/roles/${projectID(payload)}?revision=${Number(payload.revision)}`);
+ case 'connections.delete':{const id=projectID(payload);await request('DELETE',`/api/connections/${id}?revision=${Number(payload.revision)}`);return connections.remove(payload.id,payload.revision);}
  case 'connections.check':return request('POST','/api/connections/check',payload.config);
  case 'connections.save':case 'connections.test':{
-  await request('POST','/api/connections/check',payload.config);const prepared=connections.prepare(payload);
+  await request('POST','/api/connections/check',payload.config);const prepared=await connections.prepare(payload);
+  await request('POST','/api/connections/validate',connections.projection(prepared.summary));
   if(prepared.entry.config.egress.mode==='explicit_proxy'&&!prepared.entry.secrets.proxy)throw new Error('请填写出口代理 URL');
   if(prepared.entry.config.egress.mode==='explicit_proxy')await request('POST','/api/proxies/validate',{url:prepared.entry.secrets.proxy});
   // Re-read revisions after asynchronous validation, before the synchronous write.
-  if(operation==='connections.save')return connections.savePrepared(connections.prepare(payload));
+  if(operation==='connections.save'){const saved=await connections.save(payload);await request('PUT','/api/connections/'+saved.id,connections.projection(saved));return saved;}
   return request('POST','/api/connections/test',{config:prepared.entry.config,values:connections.values(prepared.entry)});
  }
  default:throw new Error('操作不受支持');
