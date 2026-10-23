@@ -37,7 +37,7 @@ JSONL 归一化覆盖会话开始、回合、Agent 文本、命令/文件/MCP/�
 
 只有提供方成功终态、进程零退出、容器清理核验及完成观察者都通过才返回 `completed`。截断、解析失败、异常退出或完成观察者失败返回 `uncertain`，context 取消/超时且完成清理后返回 `interrupted`。失败结果保留会话编号、草稿和已报告用量，不自动重试。平台任务验收仍由后续证据/审查决定。
 
-当前私有 HOME 在容器退出时销毁，因此能力明确为：会话编号可报告，原生 `resume=false`、`live_ready=false`、token 硬上限不支持；恢复仅能由平台新建 attempt 并重建上下文。显式传入旧会话编号会在启动前拒绝，不使用 `--last`。这保留原生持久化恢复的后续需求。
+最初临时模式的私有 HOME 在容器退出时销毁，当时能力为：会话编号可报告，原生 `resume=false`、`live_ready=false`、token 硬上限不支持；恢复仅能由平台新建 attempt 并重建上下文。显式传入旧会话编号会在启动前拒绝，不使用 `--last`。这保留原生持久化恢复的后续需求。
 
 协议依据已核对 [官方非交互模式](https://learn.chatgpt.com/docs/non-interactive-mode) 和 [官方 CLI 参数](https://learn.chatgpt.com/docs/developer-commands?surface=cli)。这不是 app-server 授权桥的替换，也未读取或交接 Electron 账号凭证。桌面原生执行入口继续保持禁用。
 
@@ -60,3 +60,5 @@ go test -race ./internal/runtime/codex -run TestRealOfflineCodexFixture -v
 参数依据重新核对官方非交互文档及本机官方 CLI 的 `exec resume --help`（全新专用 CODEX_HOME，仅帮助命令）。resume 没有局部 sandbox 参数，故把沙箱策略放到全局参数位置；提示词继续仅走 stdin。
 
 规则单元测试、全量 Go verify/race、lint 通过。真实 Podman + 已有 Alpine 镜像中，两次不同容器/适配器实例共享同一私有状态，第二次按指定 session ID 续接合成 CLI 脚本通过；同时回归取消、超时、输出超限与清理。该证据仅为真实容器内合成 CLI 协议，未执行真实 Codex 推理、真实账号或在线请求；完整会话管理与重启状态判定另行实施。
+
+后续已补齐会话管理、schema 5 检查点与重启状态判定，见 [原生会话持久化与恢复](./m2-native-session-recovery-2026-10-23.md)。前述临时模式描述保留为原实现记录，配置持久目录的模式另行声明恢复能力；真实账号与在线验收状态未改变。

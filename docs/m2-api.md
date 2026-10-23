@@ -1,6 +1,6 @@
 # M2 本地 HTTP 与桌面接口
 
-当前实现：2026-10-23，`stage=M2`，SQLite schema 4。M1 项目/文档/方案接口继续保留，[M1 接口记录](./m1-api.md) 中的健康检查版本和连接测试请求格式由本页更新。`contracts/openapi.json` 仍是 M0 全阶段设计草案，不是当前全部可调用接口。
+当前实现：2026-10-23，`stage=M2`，SQLite schema 5。M1 项目/文档/方案接口继续保留，[M1 接口记录](./m1-api.md) 中的健康检查版本和连接测试请求格式由本页更新。`contracts/openapi.json` 仍是 M0 全阶段设计草案，不是当前全部可调用接口。
 
 ## 身份与秘密边界
 
@@ -12,7 +12,7 @@
 
 | 方法与路径 | 请求与结果 |
 | --- | --- |
-| GET `/healthz` | `{status:"ok",schema_version:4,stage:"M2"}`，无认证只读。 |
+| GET `/healthz` | `{status:"ok",schema_version:5,stage:"M2"}`，无认证只读。 |
 | GET `/api/connections` | 非秘密连接 metadata 数组。 |
 | POST `/api/connections/check` | `apiconfig.Config`；校验格式并规范化端点，无模型请求。 |
 | POST `/api/connections/validate` | `catalog.Connection`；校验 metadata，无模型请求。 |
@@ -68,3 +68,8 @@
 新增白名单操作：`roles.list/templates/save/delete`、`runs.list/get/start/cancel/resume`、`usage.get`、`budget.save`、`connections.delete`、`accounts.list/check/login/cancel/logout`。保留原 M1 操作。
 
 `connections.save/list/delete` 在主进程同步加密库及非秘密目录；运行 start/resume 自动解析连接修订与秘密引用，页面不提交历史密钥。账号操作仅接受内建 provider，不能转发任意原生 RPC。当前 GPT 使用官方 app-server 的账号方法，Claude 返回未就绪；没有对应的通用 Go HTTP 账号登录端点，也没有原生编码线程入口。
+
+
+## 原生会话只读记录（schema 5）
+
+GET `/api/projects/{id}/native-sessions` 返回会话/本地恢复条件列表；GET `/api/projects/{id}/native-sessions/{session}` 返回 `{view,attempts}`。仅人类身份可读，跨项目详情拒绝。`view.can_resume` 是本地文件证据，`view.live_ready=false` 表示真实账号与在线执行尚未接通。没有开放原生启动或续接 HTTP 操作。详见 [恢复记录](./m2-native-session-recovery-2026-10-23.md)。

@@ -5,6 +5,7 @@ import (
 	"agent-workbench/contracts"
 	"agent-workbench/internal/apiconfig"
 	"agent-workbench/internal/egress"
+	"agent-workbench/internal/nativeservice"
 	"agent-workbench/internal/project"
 	"agent-workbench/internal/runservice"
 	"agent-workbench/internal/runtime/direct"
@@ -30,6 +31,7 @@ type principalKey struct{}
 type Server struct {
 	Store      *store.Store
 	Runner     *runservice.Manager
+	Native     *nativeservice.Manager
 	DataDir    string
 	HumanToken string
 	mu         sync.Mutex
@@ -48,12 +50,17 @@ func Open(ctx context.Context, dataDir string) (*Server, error) {
 	if err != nil {
 		return nil, errors.Join(err, s.Close())
 	}
+	a.Native, err = nativeservice.New(ctx, s, filepath.Join(dataDir, "native-runtime"))
+	if err != nil {
+		a.Runner.Close()
+		return nil, errors.Join(err, s.Close())
+	}
 	a.routes()
 	return a, nil
 }
 
 // Close stops model clients before releasing the database and instance lock.
-func (a *Server) Close() error { a.Runner.Close(); return a.Store.Close() }
+func (a *Server) Close() error { a.Native.Close(); a.Runner.Close(); return a.Store.Close() }
 
 // Handler rejects unauthenticated and cross-origin API access.
 func (a *Server) Handler() http.Handler {
@@ -151,6 +158,7 @@ func human(r *http.Request) bool { return principal(r).Role == "human" }
 func (a *Server) routes() {
 	a.catalogRoutes()
 	a.runRoutes()
+	a.nativeRoutes()
 	a.mux.HandleFunc("POST /api/proxies/validate", func(w http.ResponseWriter, r *http.Request) {
 		if !human(r) {
 			replyError(w, store.ErrForbidden)

@@ -72,6 +72,8 @@ async function invoke(operation,payload,sender){
  case 'roles.templates':return request('GET','/api/role-templates');
  case 'roles.save':{const id=projectID({id:payload.role?.id});await syncConnections();return request('PUT','/api/roles/'+id,payload.role);}
  case 'roles.delete':return request('DELETE',`/api/roles/${projectID(payload)}?revision=${Number(payload.revision)}`);
+ case 'native.sessions.list':return request('GET',`/api/projects/${projectID(payload)}/native-sessions`);
+ case 'native.sessions.get':return request('GET',`/api/projects/${projectID(payload)}/native-sessions/${projectID({id:payload.session_id})}`);
  case 'runs.list':return request('GET',`/api/projects/${projectID(payload)}/runs`);
  case 'runs.get':return request('GET',`/api/projects/${projectID(payload)}/runs/${projectID({id:payload.run_id})}`);
  case 'runs.cancel':return request('POST',`/api/projects/${projectID(payload)}/runs/${projectID({id:payload.run_id})}/cancel`,{});

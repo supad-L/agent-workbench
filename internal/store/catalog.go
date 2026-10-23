@@ -15,7 +15,7 @@ CREATE TABLE role_connections(role_id TEXT NOT NULL REFERENCES roles(id) ON DELE
 INSERT INTO schema_migrations VALUES(2);`
 
 // SchemaVersion is the latest compatible local database version.
-const SchemaVersion = 4
+const SchemaVersion = 5
 
 // transaction commits one serialized catalog mutation or rolls it back entirely.
 func (s *Store) transaction(ctx context.Context, fn func(*sql.Tx) error) (err error) {

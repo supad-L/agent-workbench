@@ -10,7 +10,7 @@
 | Node / pnpm | 本机 v24.19 / v11.25 | 前端、桌面测试和构建脚本已使用；依赖由 pnpm-lock.yaml 固定 |
 | Electron / electron-builder | 45.0.0 / 26.15.3 | macOS arm64 本地未签名应用打包、真实启动和重启通过 |
 | React / Ant Design / TypeScript / Vite | 19.3.1 / 6.6.7 / 7.0.2 / 8.3.5 | 生产构建、类型检查和界面组件测试通过 |
-| SQLite 驱动 | github.com/mattn/go-sqlite3 v1.14.52，CGO | 当前 schema 4；旧库事务升级、外键/WAL、用量预约和重启恢复测试通过；需要本机 C 编译器 |
+| SQLite 驱动 | github.com/mattn/go-sqlite3 v1.14.52，CGO | 当前 schema 5；旧库事务升级、外键/WAL、用量预约和重启恢复测试通过；需要本机 C 编译器 |
 | PDF 提取 | github.com/ledongthuc/pdf 5e46805f718e | 固定到 go.mod 中完整伪版本；带文字 PDF 夹具通过，无 OCR |
 | Docker / Docker Desktop | 保留原型适配与默认选择 | 本机安装路线因公司限制撤回；产品继续支持，自动测试通过，本轮不执行真实 Docker Desktop 测试 |
 | Podman Desktop / Podman | 1.30.5 / 6.1.4，darwin/arm64 | 程序、引擎及虚拟机数据在 D 盘；工作台真实写边界探针通过，完整执行器/网络隔离仍待验收；见 [环境记录](./local-container-runtime.md) |

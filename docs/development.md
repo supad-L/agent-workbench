@@ -30,7 +30,7 @@ python3 scripts/desktop-smoke.py
 
 `m1-smoke.py` 使用临时源项目和真实本地服务；`m2-smoke.py` 使用本机合成网关验证角色工具循环、连接测试记账、预算、幂等及重启，不请求服务商。`native-auth-smoke.cjs` 仅在全新工作台目录验证官方 Codex 握手和空账号状态，不登录、不推理。`desktop-smoke.py` 启动实际应用，验证渲染层握手、后端健康、退出和再次启动，不自动点击界面。临时夹具会清理，脱敏报告位于忽略的 `output/verification/`。仅修改文档时无需重新打包，修改 Go/前端/桌面代码后应先重建相应部分，再打包。
 
-独立后端入口为 `./bin/agent-workbench serve --data-dir /ABSOLUTE/DATA_DIRECTORY`。它输出包含本地人类令牌的私有启动握手，不要把原始 stdout 上传；一般使用桌面入口即可。当前数据库 schema 为 4，旧数据库自动事务升级，升级后不应使用旧二进制打开。操作前可在应用退出后备份整个数据目录。HTTP 合同见 [M1 基础接口](./m1-api.md) 和 [M2 新增及变更接口](./m2-api.md)，操作见 [中文指南](./工作台-中文操作指南.md) 和 [角色与连接指南](./M2-角色与连接操作指南.md)。
+独立后端入口为 `./bin/agent-workbench serve --data-dir /ABSOLUTE/DATA_DIRECTORY`。它输出包含本地人类令牌的私有启动握手，不要把原始 stdout 上传；一般使用桌面入口即可。当前数据库 schema 为 5，旧数据库自动事务升级，升级后不应使用旧二进制打开。操作前可在应用退出后备份整个数据目录。HTTP 合同见 [M1 基础接口](./m1-api.md) 和 [M2 新增及变更接口](./m2-api.md)，操作见 [中文指南](./工作台-中文操作指南.md) 和 [角色与连接指南](./M2-角色与连接操作指南.md)。
 
 ## 环境
 
