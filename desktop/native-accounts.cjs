@@ -2,6 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { StringDecoder } = require('node:string_decoder');
+const { randomUUID } = require('node:crypto');
 
 async function findExecutable(name, candidates = []) {
   for (const candidate of [...candidates, ...(process.env.PATH || '').split(path.delimiter).filter(Boolean).map(folder => path.join(folder, process.platform === 'win32' ? name + '.exe' : name))]) {
@@ -27,28 +28,63 @@ function authURL(value) {
 
 // This client exposes only official account RPCs. It never starts a thread or executes code.
 class CodexAccount {
-  constructor(directory, { spawnProcess = spawn, discover = discoverCodex, openExternal, timeout = 10000 } = {}) {
+  constructor(directory, { spawnProcess = spawn, discover = discoverCodex, openExternal, timeout = 10000, coordination } = {}) {
     this.directory = directory; this.home = path.join(directory, 'native-accounts', 'codex');
     this.spawnProcess = spawnProcess; this.discover = discover; this.openExternal = openExternal;
     this.timeout = timeout; this.pending = new Map(); this.sequence = 0; this.queue = Promise.resolve();
     this.child = null; this.ready = null; this.closing = false; this.loginId = null; this.loginTimer = null;
     this.completedLogins = new Set(); this.account = { checked: false, loggedIn: false, authType: 'unknown', planType: null };
+    this.coordination = coordination; this.coordinationState = null;
+    this.ownerFile = path.join(this.home, '.workbench-auth-owner'); this.ownerReceipt = null;
+    this.stopping = new WeakMap();
   }
   exclusive(operation) { const result = this.queue.then(operation); this.queue = result.catch(() => {}); return result; }
+  managed(kind, operation) {
+    return this.exclusive(async () => {
+      if (this.closing) throw new Error('账号服务正在关闭');
+      // Reserve the backend owner before touching the CLI or its authentication.
+      const receipt = this.coordination ? await this.coordination.begin(kind) : null;
+      try {
+        if (this.closing) throw new Error('账号服务正在关闭');
+        await operation();
+        // Pending browser authorization still owns the chain. Otherwise stop the
+        // official auth process before granting any native execution ownership.
+        if (this.coordination && !this.loginId) await this.stopChild(this.child);
+        if (receipt) this.coordinationState = await this.coordination.finish({ operation: receipt.operation, authenticated: this.account.loggedIn, owner_active: !!this.loginId, healthy: true });
+        return this.describe();
+      } catch (error) {
+        if (receipt) {
+          let healthy = true;
+          try { await this.stopChild(this.child); } catch { healthy = false; }
+          this.account = { checked: false, loggedIn: false, authType: 'unknown', planType: null };
+          try { this.coordinationState = await this.coordination.finish({ operation: receipt.operation, authenticated: false, owner_active: !healthy, healthy }); }
+          catch { throw new Error('账号协调结果未确认，当前不可交接执行，请重启后核对'); }
+        }
+        throw error;
+      }
+    });
+  }
   async describe() {
     const executable = await this.discover();
     return { provider: 'codex', name: 'GPT / ChatGPT', installed: !!executable, executable,
       ...this.account, loginPending: !!this.loginId, loginReady: !!executable, executionReady: false,
+      coordination: this.coordinationState,
       network: 'system', reason: '原生任务运行仍需通过 CLI 与隔离环境组合验收。' };
   }
   async start() {
     if (this.closing) throw new Error('账号服务正在关闭');
     if (this.ready) return this.ready;
+    if (this.child && (this.child.exitCode !== null || this.child.signalCode != null)) await this.stopChild(this.child);
     this.ready = (async () => {
       const binary = await this.discover(); if (!binary) throw new Error('未找到官方 Codex CLI，请先安装或更新官方应用');
       await fs.mkdir(this.home, { recursive: true, mode: 0o700 });
       const base = await fs.realpath(this.directory), actual = await fs.realpath(this.home);
       if (actual !== path.join(base, 'native-accounts', 'codex')) throw new Error('工作台认证目录不能指向其他账号目录的符号链接');
+      if(this.closing)throw new Error('账号服务正在关闭');
+      const receipt = randomUUID();
+      try { await fs.writeFile(this.ownerFile, receipt, { flag: 'wx', mode: 0o600, flush: true }); }
+      catch { throw new Error('认证进程的独占状态未确认，请先核对上次授权进程是否已停止'); }
+      this.ownerReceipt = receipt;
       if(this.closing)throw new Error('账号服务正在关闭');
       const env = {};
       for (const name of ['PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TEMP', 'TMP', 'LANG', 'LC_ALL', 'SYSTEMROOT', 'WINDIR']) if (process.env[name]) env[name] = process.env[name];
@@ -68,11 +104,11 @@ class CodexAccount {
         }
       });
       child.on('error', () => { this.fail(new Error('无法启动官方账号接口')); this.ready = null; });
-      child.on('exit', () => { if(this.child!==child)return;this.fail(new Error('官方账号接口已退出')); this.child = null; this.ready = null; clearTimeout(this.loginTimer); this.loginId = null; });
+      child.on('exit', () => { if(this.child!==child)return;this.fail(new Error('官方账号接口已退出')); this.ready = null; clearTimeout(this.loginTimer); this.loginId = null; });
       await this.rpc('initialize', { clientInfo: { name: 'agent_workbench', title: 'Agent Workbench', version: '0.1.0' } });
       this.send({ method: 'initialized', params: {} });
     })();
-    try { await this.ready; } catch (error) {const child=this.child;if(child){try{await this.stopChild(child)}catch(stopError){this.closing=true;throw stopError}}this.ready = null; throw error; }
+    try { await this.ready; } catch (error) {const child=this.child;try{if(child)await this.stopChild(child);else await this.releaseOwner()}catch(stopError){this.closing=true;throw stopError}this.ready = null; throw error; }
   }
   send(value) { if (!this.child || this.child.killed) throw new Error('官方账号接口未连接'); this.child.stdin.write(JSON.stringify(value) + '\n', error => { if (error) this.fail(new Error('官方账号接口连接中断')); }); }
   rpc(method, params = {}) {
@@ -99,14 +135,16 @@ class CodexAccount {
     }
   }
   fail(error) { for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error); } this.pending.clear(); }
-  async readAccount() {
-    const result = await this.rpc('account/read', { refreshToken: false });
+  async readAccount(refreshToken = false) {
+    const result = await this.rpc('account/read', { refreshToken });
     this.account = { checked: true, loggedIn: result?.account?.type === 'chatgpt', authType: result?.account?.type || 'none', planType: typeof result?.account?.planType === 'string' ? result.account.planType : null };
     return this.describe();
   }
-  check() { return this.exclusive(async () => { await this.start(); return this.readAccount(); }); }
+  check() { return this.managed('check', async () => { await this.start(); await this.readAccount(); }); }
+  // Internal only: no polling refresh, token export, or renderer refresh RPC.
+  refresh() { return this.managed('refresh', async () => { await this.start(); await this.readAccount(true); }); }
   login() {
-    return this.exclusive(async () => {
+    return this.managed('login', async () => {
       await this.start(); if (this.loginId) return this.describe();
       const result = await this.rpc('account/login/start', { type: 'chatgpt' });
       if (!result?.loginId || typeof result.loginId !== 'string') throw new Error('官方登录流程未返回有效编号');
@@ -120,17 +158,31 @@ class CodexAccount {
       return this.describe();
     });
   }
-  cancelLogin() { return this.exclusive(async () => { if (this.loginId) { await this.rpc('account/login/cancel', { loginId: this.loginId }); this.loginId = null; clearTimeout(this.loginTimer); } return this.describe(); }); }
-  logout() { return this.exclusive(async () => { await this.start(); await this.rpc('account/logout'); this.loginId = null; clearTimeout(this.loginTimer); return this.readAccount(); }); }
-  async stopChild(child){
-    if(!child||child.exitCode!==null&&child.exitCode!==undefined)return;
-    await new Promise((resolve,reject)=>{
+  cancelLogin() { return this.managed('cancel', async () => { await this.start(); if (this.loginId) { await this.rpc('account/login/cancel', { loginId: this.loginId }); this.loginId = null; clearTimeout(this.loginTimer); } await this.readAccount(); }); }
+  logout() { return this.managed('logout', async () => { await this.start(); await this.rpc('account/logout'); this.loginId = null; clearTimeout(this.loginTimer); await this.readAccount(); }); }
+  async releaseOwner() {
+    if (!this.ownerReceipt) return;
+    // Only an owner created by this instance may be cleared, after confirmed exit
+    // (or a synchronous spawn failure). Never remove another process's marker.
+    const value = await fs.readFile(this.ownerFile, 'utf8');
+    if (value !== this.ownerReceipt) throw new Error('认证进程所有权已变化，未清除占用');
+    await fs.unlink(this.ownerFile); this.ownerReceipt = null;
+  }
+  stopChild(child) {
+    if (!child) return Promise.resolve();
+    if (!this.stopping.has(child)) this.stopping.set(child, this.stopChildOnce(child));
+    return this.stopping.get(child);
+  }
+  async stopChildOnce(child){
+    if(child.exitCode==null&&child.signalCode==null)await new Promise((resolve,reject)=>{
       let finished=false;
       const complete=()=>{if(finished)return;finished=true;clearTimeout(killTimer);clearTimeout(deadline);child.removeListener('exit',complete);child.removeListener('close',complete);resolve()};
       const killTimer=setTimeout(()=>child.kill('SIGKILL'),2000);
       const deadline=setTimeout(()=>{if(finished)return;finished=true;child.removeListener('exit',complete);child.removeListener('close',complete);reject(new Error('无法停止官方账号进程，账号服务保持关闭'))},3000);
       child.once('exit',complete);child.once('close',complete);child.kill('SIGTERM');
     });
+    await this.releaseOwner();
+    if(this.child===child){this.child=null;this.ready=null;}
   }
   async close() {
     this.closing = true; clearTimeout(this.loginTimer); this.fail(new Error('账号服务已关闭'));

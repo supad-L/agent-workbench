@@ -73,3 +73,7 @@
 ## 原生会话只读记录（schema 5）
 
 GET `/api/projects/{id}/native-sessions` 返回会话/本地恢复条件列表；GET `/api/projects/{id}/native-sessions/{session}` 返回 `{view,attempts}`。仅人类身份可读，跨项目详情拒绝。`view.can_resume` 是本地文件证据，`view.live_ready=false` 表示真实账号与在线执行尚未接通。没有开放原生启动或续接 HTTP 操作。详见 [恢复记录](./m2-native-session-recovery-2026-10-23.md)。
+
+## 原生账号协调控制面（2026-10-24）
+
+GET `/api/native-account` 读取保守共享槽状态；POST `/api/native-account/auth/begin` 使用 `{kind}` 领取认证所有权；POST `/api/native-account/auth/finish` 使用匹配的 `{operation,authenticated,owner_active,healthy}` 回执收尾。仅人类身份，严格拒绝未知字段和凭证；冲突返回 409。begin/finish 由桌面主进程调用，没有对应渲染层 IPC，也不启动任何模型。登录/退出等待原执行清理及持久收尾，检测/刷新不抢占执行。详见 [协调记录](./m2-native-account-coordination-2026-10-24.md)。

@@ -122,6 +122,8 @@ go test ./internal/runtime/direct -run '^$' -fuzz FuzzSSEFraming -fuzztime 5s -p
 
 ## 验证证据
 
+`python3 scripts/frontend.py exec node scripts/native-account-smoke.cjs` 使用新建空认证命名空间，将真实 Go 后端与官方 Codex 账号桥接通，检查账号槽及认证进程停止。需先构建后端，不登录、不调用模型、不读取用户原有认证目录。真实容器内的账号退出取消探针见 [账号运行协调记录](./m2-native-account-coordination-2026-10-24.md)。
+
 建议保存以下输出到 output/verification/，该目录不提交密钥或真实账号日志：verify、lint、doctor、protocol-probe、contracts-check。当前真实接入和容器隔离状态见 m0-report.md。
 
 `network-probe` 仅验证应用 HTTP 路径、代理故障不回退及会话撤销，不证明 Claude 浏览器/CLI 或 IPv6/DNS/UDP 的强制隔离；`strict_isolation` 仍为 `unverified_blocked`。进度见 [网络实施记录](./network-proxy-progress-v0.2.md)。

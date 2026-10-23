@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"agent-workbench/internal/accountcoord"
 	"agent-workbench/internal/runtime"
 	"agent-workbench/internal/runtime/codex"
 	"agent-workbench/internal/sandbox"
@@ -40,6 +41,115 @@ printf '{"type":"item.completed","item":{"id":"text-1","type":"agent_message","t
 if [ "$prompt" = crash ]; then sleep 60; fi
 printf '{"type":"turn.completed","usage":{"input_tokens":12,"output_tokens":6}}\n'
 `
+
+func TestRealAccountLogoutStopsNative(t *testing.T) {
+	kind := os.Getenv("AWB_TEST_SANDBOX_RUNTIME")
+	if kind == "" {
+		t.Skip("explicit runtime/image/shared scratch required")
+	}
+	image, scratch := os.Getenv("AWB_TEST_SANDBOX_IMAGE"), os.Getenv("AWB_TEST_SANDBOX_SCRATCH")
+	if image == "" || scratch == "" {
+		t.Fatal("explicit local image and shared scratch required")
+	}
+	root, err := os.MkdirTemp(scratch, "awb-account-logout-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(root); err != nil {
+			t.Error(err)
+		}
+	}()
+	source := filepath.Join(root, "source")
+	if err = os.Mkdir(source, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(source, "fixture-codex"), []byte(realFixtureScript), 0755); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	s, err := store.Open(ctx, filepath.Join(root, "state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	c := accountcoord.New()
+	op, err := c.Begin(ctx, "check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Authorization is synthetic; no credential directory is mounted in this test.
+	if err = c.Finish(op, true, false, true); err != nil {
+		t.Fatal(err)
+	}
+	m, err := NewWithAccounts(ctx, s, filepath.Join(root, "state", "native-runtime"), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	human := store.Principal{ID: "fixture-human", Role: "human"}
+	project := "account-logout"
+	if _, err = s.CreateProject(ctx, human, "project", store.Project{ID: project, Name: "Synthetic account cancellation", Snapshot: source, Manifest: []byte("[]")}); err != nil {
+		t.Fatal(err)
+	}
+	ref := c.View().Reference
+	binding := store.NativeBinding{Account: &ref, Runtime: sandbox.RuntimeKind(kind), Binary: "/workspace/fixture-codex", Model: "fixture-model", Spec: sandbox.Spec{ImageID: image, SourceRoot: source, Scope: workspace.Scope{ReadPaths: []string{"."}}}}
+	session, err := m.Create(ctx, human, project, binding, "create")
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		_, runErr := m.Run(ctx, human, project, session.ID, "start", "crash\n", session.Revision, false, 15*time.Second)
+		if runErr == nil {
+			t.Error("canceled synthetic process returned success")
+		}
+	}()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		stored, readErr := s.NativeSession(ctx, human, project, session.ID)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if stored.Checkpoint.Text == "persisted native fixture draft" {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("native checkpoint not observed", ctx.Err())
+		case <-finished:
+			t.Fatal("native execution ended before logout")
+		case <-ticker.C:
+		}
+	}
+	op, err = c.Begin(ctx, "logout")
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-finished
+	stored, err := s.NativeSession(ctx, human, project, session.ID)
+	if err != nil || stored.Status != "interrupted" || !stored.CleanupVerified || stored.Checkpoint.Text != "persisted native fixture draft" {
+		t.Fatal(stored, err)
+	}
+	count, err := os.ReadFile(filepath.Join(stored.RunDirectory, "codex", "count"))
+	if err != nil || string(count) != "1" || c.View().Active != 0 {
+		t.Fatal("execution repeated or slot not settled", string(count), c.View(), err)
+	}
+	if err = c.Finish(op, false, false, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = m.Run(ctx, human, project, session.ID, "revoked-resume", "follow-up\n", stored.Revision, true, time.Second); !errors.Is(err, accountcoord.ErrUnavailable) {
+		t.Fatal("revoked account resumed", err)
+	}
+	t.Log("real container: logout canceled execution, retained draft, verified cleanup, released slot after settlement, no repeat")
+}
 
 func TestRealNativeSessionRestart(t *testing.T) {
 	kind := os.Getenv("AWB_TEST_SANDBOX_RUNTIME")

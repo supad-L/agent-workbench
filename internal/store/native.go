@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"agent-workbench/internal/accountcoord"
 	"agent-workbench/internal/runtime"
 	"agent-workbench/internal/sandbox"
 )
@@ -25,10 +26,35 @@ var nativeID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 // NativeBinding is a fixed platform-owned snapshot/environment, not account access.
 type NativeBinding struct {
-	Runtime sandbox.RuntimeKind `json:"runtime"`
-	Spec    sandbox.Spec        `json:"spec"`
-	Binary  string              `json:"binary"`
-	Model   string              `json:"model"`
+	Account *accountcoord.Reference `json:"account,omitempty"`
+	Runtime sandbox.RuntimeKind     `json:"runtime"`
+	Spec    sandbox.Spec            `json:"spec"`
+	Binary  string                  `json:"binary"`
+	Model   string                  `json:"model"`
+}
+
+// UncleanNativeAccount detects persistent cleanup debt, including attempts that
+// already settled as uncertain and therefore are no longer restart-pending.
+func (s *Store) UncleanNativeAccount(ctx context.Context) (unclean bool, returnErr error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT data FROM native_sessions")
+	if err != nil {
+		return false, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, rows.Close()) }()
+	for rows.Next() {
+		var raw []byte
+		var session NativeSession
+		if err = rows.Scan(&raw); err != nil {
+			return false, err
+		}
+		if err = json.Unmarshal(raw, &session); err != nil {
+			return false, err
+		}
+		if session.Binding.Account != nil && session.Attempt > 0 && !session.CleanupVerified {
+			unclean = true
+		}
+	}
+	return unclean, rows.Err()
 }
 
 // NativeSession stores normalized progress separately from opaque CLI state files.

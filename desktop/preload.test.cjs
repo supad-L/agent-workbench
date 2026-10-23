@@ -34,7 +34,7 @@ test('预加载层放行主进程已实现的每个操作并原样转交参数',
 
 test('预加载层拒绝未实现的操作且不发送 IPC', async () => {
   const { exposed, calls } = bridge();
-  for (const operation of ['native.sessions.start', 'native.sessions.resume', 'arbitrary.command', '__proto__', undefined]) {
+  for (const operation of ['native.sessions.start', 'native.sessions.resume', 'accounts.refresh', 'accounts.auth.finish', 'arbitrary.command', '__proto__', undefined]) {
     await assert.rejects(exposed.invoke(operation), /操作不受支持/);
   }
   assert.equal(calls.length, 0);

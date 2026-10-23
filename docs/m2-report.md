@@ -60,4 +60,6 @@
 
 官方认证接口依据：[Codex app-server](https://learn.chatgpt.com/docs/app-server)、[Codex authentication](https://learn.chatgpt.com/docs/auth)、[Codex configuration reference](https://learn.chatgpt.com/docs/config-reference)。Claude 后续适配依据：[Headless mode](https://code.claude.com/docs/en/headless)、[Network configuration](https://code.claude.com/docs/en/network-config)。这些文档提供协议依据，不代表本项目已通过真实订阅编码验收。
 
-原生持久化后续：独立运行目录、指定 ID 续接、SQLite 检查点、重启核对及只读记录页已实现；真实 Podman 内合成 CLI 的跨数据库续接、强制终止平台进程后的 uncertain/清理/不重发通过。新页桌面视觉复核因锁屏未执行。详见 [持久会话恢复记录](./m2-native-session-recovery-2026-10-23.md)。
+原生持久化后续：独立运行目录、指定 ID 续接、SQLite 检查点、重启核对及只读记录页已实现；真实 Podman 内合成 CLI 的跨数据库续接、强制终止平台进程后的 uncertain/清理/不重发通过。10 月 24 日补齐桌面视觉复核并修复预加载桥接，详见 [桌面复核](./native-session-ui-review-2026-10-24.md) 与 [持久会话恢复记录](./m2-native-session-recovery-2026-10-23.md)。
+
+2026-10-24 账号运行协调：已接通 Go 单槽、代际撤销、退出取消及清理/持久收尾等待，与 Electron 单一认证所有者和独占标记协作。真实 Podman 合成执行退出取消、官方 CLI 空账号与实际桌面检查通过；22 项桌面、22 项 UI 及 Go verify/race/lint、打包重启通过。没有接通真实认证交接或在线执行，M2-05 仍未验收。详见 [账号运行协调记录](./m2-native-account-coordination-2026-10-24.md)。

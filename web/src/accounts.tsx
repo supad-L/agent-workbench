@@ -3,6 +3,8 @@ import { App, Alert, Button, Card, Popconfirm, Space, Tag } from 'antd';
 import { api } from './api';
 import { ConnectionAccess, type AccountProvider } from './connection-guide';
 
+const coordinationLabels: Record<string, string> = { unverified: '等待授权核对', idle: '空闲', executing: '执行占用中', authenticating: '认证操作中', blocked: '清理或交接待核对', closed: '服务已关闭' };
+
 export default function Accounts({ provider, onConnections, onAccounts }: { provider?: AccountProvider; onConnections?: () => void; onAccounts?: (provider: AccountProvider) => void } = {}) {
   const { message } = App.useApp();
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -40,6 +42,7 @@ export default function Accounts({ provider, onConnections, onAccounts }: { prov
           <dt>官方工具</dt><dd><Tag color={account.installed ? 'green' : 'default'}>{account.installed ? '已找到' : '未找到'}</Tag></dd>
           <dt>账号授权</dt><dd><Tag color={account.loggedIn ? 'green' : account.loginPending ? 'blue' : 'default'}>{account.loggedIn ? '已授权' : account.loginPending ? '等待授权' : account.checked ? '未授权' : '尚未检测'}</Tag></dd>
           <dt>编码执行</dt><dd><Tag color={account.executionReady ? 'green' : 'gold'}>{account.executionReady ? '已就绪' : '尚未就绪'}</Tag></dd>
+          {account.coordination && <><dt>账号占用</dt><dd>{coordinationLabels[account.coordination.state] || '等待核对'} · {account.coordination.active}/{account.coordination.limit}</dd></>}
         </dl>
         {account.provider === 'codex' && <><p>凭证存储：要求系统 keyring；不使用明文文件回退。</p>{account.planType && <p>服务报告的套餐：{account.planType}</p>}</>}
         <Alert type={account.provider === 'claude' ? 'warning' : 'info'} title={account.reason} />
@@ -47,7 +50,7 @@ export default function Accounts({ provider, onConnections, onAccounts }: { prov
           <Button disabled={!account.installed || !!busy} onClick={() => act('accounts.check')}>检测登录状态</Button>
           <Button type="primary" disabled={!account.loginReady || account.loginPending || !!busy} loading={busy === 'accounts.login'} onClick={() => act('accounts.login')}>{account.loggedIn ? '重新登录 / 切换账号' : '登录 ChatGPT'}</Button>
           {account.loginPending && <Button disabled={!!busy} onClick={() => act('accounts.cancel')}>取消登录</Button>}
-          {account.loggedIn && <Popconfirm title="退出工作台管理的 GPT 账号？" description="注销工作台专用认证目录中的授权。" okText="退出" cancelText="取消" onConfirm={() => act('accounts.logout')}><Button disabled={!!busy}>退出账号</Button></Popconfirm>}
+          {account.loggedIn && <Popconfirm title="退出工作台管理的 GPT 账号？" description="先停止关联执行并确认清理，再注销工作台专用授权。" okText="退出" cancelText="取消" onConfirm={() => act('accounts.logout')}><Button disabled={!!busy}>退出账号</Button></Popconfirm>}
         </Space> : <Button disabled style={{ marginTop: 20 }}>等待强制出口验证后开放登录</Button>}
       </Card>)}</div>
       <p className="role-template-note">此处的订阅账号尚不能绑定为开发执行连接。公司中转、Coding Plan 与 DeepSeek 等 API 请在“模型连接”配置。</p>

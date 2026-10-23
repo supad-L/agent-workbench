@@ -86,7 +86,7 @@ async function invoke(operation,payload,sender){
  case 'runs.resume':{const id=projectID(payload),runID=projectID({id:payload.run_id});const run=await request('GET',`/api/projects/${id}/runs/${runID}`);const resolved=await runValues(run.choices);return request('POST',`/api/projects/${id}/runs/${runID}/resume`,{values:resolved.values});}
  case 'usage.get':return request('GET','/api/usage');
  case 'budget.save':{if(!['CNY','USD'].includes(payload.budget?.currency))throw new Error('预算币种无效');return request('PUT','/api/budgets/'+payload.budget.currency,payload.budget);}
- case 'accounts.list':return [await codexAccount.describe(),await claudeReadiness()];
+ case 'accounts.list':return [{...await codexAccount.describe(),coordination:await request('GET','/api/native-account')},await claudeReadiness()];
  case 'accounts.check':case 'accounts.login':case 'accounts.cancel':case 'accounts.logout':{
   if(payload.provider!=='codex')throw new Error('Claude 强制出口链路尚未验证，当前不启动其登录或网络请求');
   if(operation==='accounts.check')return codexAccount.check();
@@ -113,7 +113,10 @@ const single=app.requestSingleInstanceLock();if(!single)app.quit();else{
  app.on('second-instance',()=>{if(window){if(window.isMinimized())window.restore();window.focus();}});
  app.whenReady().then(async()=>{
   await startBackend();connections=new ConnectionStore(dataDir,safeStorage);
-  codexAccount=new CodexAccount(dataDir,{openExternal:url=>shell.openExternal(url)});
+  codexAccount=new CodexAccount(dataDir,{openExternal:url=>shell.openExternal(url),coordination:{
+   begin:kind=>request('POST','/api/native-account/auth/begin',{kind}),
+   finish:result=>request('POST','/api/native-account/auth/finish',result)
+  }});
   const icon=nativeImage.createFromPath(path.join(root,'assets','app.png'));if(app.dock)app.dock.setIcon(icon);
   window=new BrowserWindow({show:false,width:1320,height:900,minWidth:960,minHeight:680,title:'Agent Workbench',backgroundColor:nativeTheme.shouldUseDarkColors?'#0e1622':'#f3f6fa',icon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false}});
   window.once('ready-to-show',()=>{if(!smokeCheck)window.show()});

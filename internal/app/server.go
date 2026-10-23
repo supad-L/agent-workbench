@@ -3,6 +3,7 @@ package app
 
 import (
 	"agent-workbench/contracts"
+	"agent-workbench/internal/accountcoord"
 	"agent-workbench/internal/apiconfig"
 	"agent-workbench/internal/egress"
 	"agent-workbench/internal/nativeservice"
@@ -32,6 +33,7 @@ type Server struct {
 	Store      *store.Store
 	Runner     *runservice.Manager
 	Native     *nativeservice.Manager
+	Accounts   *accountcoord.Coordinator
 	DataDir    string
 	HumanToken string
 	mu         sync.Mutex
@@ -50,7 +52,8 @@ func Open(ctx context.Context, dataDir string) (*Server, error) {
 	if err != nil {
 		return nil, errors.Join(err, s.Close())
 	}
-	a.Native, err = nativeservice.New(ctx, s, filepath.Join(dataDir, "native-runtime"))
+	a.Accounts = accountcoord.New()
+	a.Native, err = nativeservice.NewWithAccounts(ctx, s, filepath.Join(dataDir, "native-runtime"), a.Accounts)
 	if err != nil {
 		a.Runner.Close()
 		return nil, errors.Join(err, s.Close())
@@ -60,7 +63,12 @@ func Open(ctx context.Context, dataDir string) (*Server, error) {
 }
 
 // Close stops model clients before releasing the database and instance lock.
-func (a *Server) Close() error { a.Native.Close(); a.Runner.Close(); return a.Store.Close() }
+func (a *Server) Close() error {
+	a.Accounts.Close()
+	a.Native.Close()
+	a.Runner.Close()
+	return a.Store.Close()
+}
 
 // Handler rejects unauthenticated and cross-origin API access.
 func (a *Server) Handler() http.Handler {
@@ -135,7 +143,7 @@ func replyError(w http.ResponseWriter, err error) {
 	if errors.Is(err, store.ErrForbidden) {
 		status = 403
 	}
-	if errors.Is(err, store.ErrConflict) {
+	if errors.Is(err, store.ErrConflict) || errors.Is(err, accountcoord.ErrBusy) || errors.Is(err, accountcoord.ErrUnavailable) {
 		status = 409
 	}
 	if errors.Is(err, store.ErrNotFound) {
@@ -159,6 +167,7 @@ func (a *Server) routes() {
 	a.catalogRoutes()
 	a.runRoutes()
 	a.nativeRoutes()
+	a.accountRoutes()
 	a.mux.HandleFunc("POST /api/proxies/validate", func(w http.ResponseWriter, r *http.Request) {
 		if !human(r) {
 			replyError(w, store.ErrForbidden)

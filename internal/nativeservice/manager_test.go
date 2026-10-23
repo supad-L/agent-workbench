@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"agent-workbench/internal/accountcoord"
 	"agent-workbench/internal/runtime"
 	"agent-workbench/internal/sandbox"
 	"agent-workbench/internal/store"
@@ -62,7 +63,87 @@ func (f fixtureExecutor) Run(ctx context.Context, request runtime.NativeRequest,
 	if f.mode == "uncertain" {
 		status = "uncertain"
 	}
-	return runtime.NativeResult{Status: status, SessionID: id, Text: checkpoint.Text, Usage: checkpoint.Usage, CleanupVerified: true}, nil
+	return runtime.NativeResult{Status: status, SessionID: id, Text: checkpoint.Text, Usage: checkpoint.Usage, CleanupVerified: f.mode != "unclean"}, nil
+}
+
+func bindAccount(t *testing.T, f fixture) store.NativeSession {
+	t.Helper()
+	c := accountcoord.New()
+	op, err := c.Begin(context.Background(), "check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = c.Finish(op, true, false, true); err != nil {
+		t.Fatal(err)
+	}
+	f.manager.accounts = c
+	binding := f.session.Binding
+	ref := c.View().Reference
+	binding.Account = &ref
+	session, err := f.manager.Create(context.Background(), f.human, f.project, binding, "account-bound")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return session
+}
+
+func TestAccountLogoutCancelsAndWaitsForDurableNativeSettlement(t *testing.T) {
+	f := setupNative(t, "wait")
+	session := bindAccount(t, f)
+	finished := make(chan error, 1)
+	go func() {
+		_, err := f.manager.Run(context.Background(), f.human, f.project, session.ID, "account-start", "input", session.Revision, false, time.Minute)
+		finished <- err
+	}()
+	<-f.ready
+	if f.manager.accounts.View().Active != 1 {
+		t.Fatal("missing slot")
+	}
+	op, err := f.manager.accounts.Begin(context.Background(), "logout")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := f.store.NativeSession(context.Background(), f.human, f.project, session.ID)
+	if err != nil || stored.Status != "interrupted" || !stored.CleanupVerified || stored.Checkpoint.Text != "saved draft" {
+		t.Fatal(stored, err)
+	}
+	if err = <-finished; !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if err = f.manager.accounts.Finish(op, false, false, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.manager.Run(context.Background(), f.human, f.project, stored.ID, "old-grant", "resume", stored.Revision, true, time.Second); !errors.Is(err, accountcoord.ErrUnavailable) {
+		t.Fatal(err)
+	}
+	if f.calls.Load() != 1 {
+		t.Fatal("revoked execution started again")
+	}
+}
+
+func TestAccountCleanupDebtSurvivesManagerRestart(t *testing.T) {
+	f := setupNative(t, "unclean")
+	session := bindAccount(t, f)
+	_, err := f.manager.Run(context.Background(), f.human, f.project, session.ID, "account-start", "input", session.Revision, false, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.manager.accounts.View().State != "blocked" {
+		t.Fatal("unclean run released account")
+	}
+	f.manager.Close()
+	c := accountcoord.New()
+	m, err := newManager(context.Background(), f.store, filepath.Join(f.root, "runtime"), f.manager.factory, f.manager.cleanup, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	if c.View().State != "blocked" {
+		t.Fatal("restart forgot cleanup debt")
+	}
+	if _, err = c.Begin(context.Background(), "login"); !errors.Is(err, accountcoord.ErrUnavailable) {
+		t.Fatal(err)
+	}
 }
 
 type fixture struct {

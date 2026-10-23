@@ -16,6 +16,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"agent-workbench/internal/accountcoord"
 	"agent-workbench/internal/runtime"
 	"agent-workbench/internal/runtime/codex"
 	"agent-workbench/internal/sandbox"
@@ -27,15 +28,16 @@ type factory func(store.NativeBinding, sandbox.Execution) runtime.NativeExecutor
 
 // Manager owns the lifetime of explicitly requested offline invocations.
 type Manager struct {
-	store   *store.Store
-	root    string
-	context context.Context
-	cancel  context.CancelFunc
-	mu      sync.Mutex
-	closed  bool
-	wg      sync.WaitGroup
-	factory factory
-	cleanup func(context.Context, sandbox.ExecutionIdentity) error
+	store    *store.Store
+	root     string
+	context  context.Context
+	cancel   context.CancelFunc
+	mu       sync.Mutex
+	closed   bool
+	wg       sync.WaitGroup
+	factory  factory
+	cleanup  func(context.Context, sandbox.ExecutionIdentity) error
+	accounts *accountcoord.Coordinator
 }
 
 // View separates local continuation evidence from real account execution readiness.
@@ -48,11 +50,17 @@ type View struct {
 
 // New reconciles previous journals but never starts or resumes a model invocation.
 func New(ctx context.Context, s *store.Store, root string) (*Manager, error) {
+	return NewWithAccounts(ctx, s, root, nil)
+}
+
+// NewWithAccounts also gates explicitly account-bound invocations. This does not
+// mount credentials or enable network; those dependencies are separate.
+func NewWithAccounts(ctx context.Context, s *store.Store, root string, accounts *accountcoord.Coordinator) (*Manager, error) {
 	return newManager(ctx, s, root, func(binding store.NativeBinding, execution sandbox.Execution) runtime.NativeExecutor {
 		return codex.Executor{Base: execution, Binary: binding.Binary}
-	}, sandbox.Cleanup)
+	}, sandbox.Cleanup, accounts)
 }
-func newManager(ctx context.Context, s *store.Store, root string, build factory, cleanup func(context.Context, sandbox.ExecutionIdentity) error) (*Manager, error) {
+func newManager(ctx context.Context, s *store.Store, root string, build factory, cleanup func(context.Context, sandbox.ExecutionIdentity) error, accounts ...*accountcoord.Coordinator) (*Manager, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -68,9 +76,22 @@ func newManager(ctx context.Context, s *store.Store, root string, build factory,
 	}
 	lifetime, cancel := context.WithCancel(ctx)
 	manager := &Manager{store: s, root: actual, context: lifetime, cancel: cancel, factory: build, cleanup: cleanup}
+	if len(accounts) > 0 {
+		manager.accounts = accounts[0]
+	}
 	if err = manager.recover(ctx); err != nil {
 		cancel()
 		return nil, err
+	}
+	if manager.accounts != nil {
+		unclean, err := s.UncleanNativeAccount(ctx)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		if unclean {
+			manager.accounts.Quarantine()
+		}
 	}
 	return manager, nil
 }
@@ -133,6 +154,9 @@ func (m *Manager) Create(ctx context.Context, p store.Principal, project string,
 	}
 	if p.ID == "" || p.Role != "human" {
 		return store.NativeSession{}, store.ErrForbidden
+	}
+	if binding.Account != nil && (m.accounts == nil || *binding.Account != m.accounts.View().Reference) {
+		return store.NativeSession{}, accountcoord.ErrUnavailable
 	}
 	m.mu.Lock()
 	closed := m.closed
@@ -297,6 +321,19 @@ func (m *Manager) Run(ctx context.Context, p store.Principal, project, id, key, 
 	if err != nil || source != view.Session.SourceDigest {
 		return view.Session, errors.New("原生源快照已变化")
 	}
+	var lease *accountcoord.Lease
+	verified := true
+	if reference := view.Session.Binding.Account; reference != nil {
+		if m.accounts == nil {
+			return view.Session, accountcoord.ErrUnavailable
+		}
+		lease, err = m.accounts.Acquire(ctx, *reference)
+		if err != nil {
+			return view.Session, err
+		}
+		defer func() { lease.Release(verified) }()
+		ctx = lease.Context()
+	}
 	session, attempt, claimed, err := m.store.ClaimNativeAttempt(ctx, p, project, id, key, prompt, revision, resume)
 	if err != nil || !claimed {
 		return session, err
@@ -305,8 +342,16 @@ func (m *Manager) Run(ctx context.Context, p store.Principal, project, id, key, 
 	stop := context.AfterFunc(m.context, cancel)
 	defer cancel()
 	defer stop()
+	launched := false
 	execution := sandbox.Execution{Runtime: session.Binding.Runtime, Spec: session.Binding.Spec, StateDirectory: filepath.Join(session.RunDirectory, "codex"), BeforeLaunch: func(ctx context.Context, identity sandbox.ExecutionIdentity) error {
-		return m.store.MarkNativeLaunch(ctx, id, attempt.Number, identity)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := m.store.MarkNativeLaunch(ctx, id, attempt.Number, identity); err != nil {
+			return err
+		}
+		launched = true
+		return nil
 	}}
 	sequence := 0
 	request := runtime.NativeRequest{Model: session.Binding.Model, Prompt: prompt, Timeout: timeout, MaxOutputBytes: 1 << 20, Checkpoint: func(ctx context.Context, checkpoint runtime.NativeCheckpoint) error {
@@ -317,6 +362,7 @@ func (m *Manager) Run(ctx context.Context, p store.Principal, project, id, key, 
 		request.ResumeSessionID = session.NativeID
 	}
 	result, runErr := m.factory(session.Binding, execution).Run(runCtx, request, func(runtime.NativeEvent) error { return nil })
+	verified = !launched || result.CleanupVerified
 	inspectCtx, inspectCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	state := ""
 	nativeID := result.SessionID
@@ -334,6 +380,7 @@ func (m *Manager) Run(ctx context.Context, p store.Principal, project, id, key, 
 	finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer finishCancel()
 	if err = m.store.FinishNative(finishCtx, id, attempt.Number, result, state); err != nil {
+		verified = false
 		m.mu.Lock()
 		m.closed = true
 		m.cancel()
