@@ -168,11 +168,16 @@ func migrate(ctx context.Context, db *sql.DB) (err error) {
 			return err
 		}
 	}
-	if version < 0 || version > 1 {
+	if version < 0 || version > SchemaVersion {
 		return errors.New("数据库版本不受支持")
 	}
 	if version == 0 {
 		if _, err = tx.ExecContext(ctx, migration); err != nil {
+			return err
+		}
+	}
+	if version < 2 {
+		if _, err = tx.ExecContext(ctx, migration2); err != nil {
 			return err
 		}
 	}

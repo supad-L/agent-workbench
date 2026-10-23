@@ -64,7 +64,7 @@ func (a *Server) Handler() http.Handler {
 				replyError(w, err)
 				return
 			}
-			reply(w, map[string]any{"status": "ok", "schema_version": 1, "stage": "M1"})
+			reply(w, map[string]any{"status": "ok", "schema_version": store.SchemaVersion, "stage": "M2"})
 			return
 		}
 		token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
@@ -140,6 +140,7 @@ func replyError(w http.ResponseWriter, err error) {
 func human(r *http.Request) bool { return principal(r).Role == "human" }
 
 func (a *Server) routes() {
+	a.catalogRoutes()
 	a.mux.HandleFunc("POST /api/proxies/validate", func(w http.ResponseWriter, r *http.Request) {
 		if !human(r) {
 			replyError(w, store.ErrForbidden)

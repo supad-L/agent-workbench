@@ -22,7 +22,7 @@ func TestFutureSchemaIsRejectedWithoutMigration(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	if _, err := db.Exec("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY); INSERT INTO schema_migrations VALUES(2)"); err != nil {
+	if _, err := db.Exec("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY); INSERT INTO schema_migrations VALUES(999)"); err != nil {
 		t.Fatal(err)
 	}
 	if opened, err := Open(context.Background(), directory); err == nil {
@@ -32,7 +32,7 @@ func TestFutureSchemaIsRejectedWithoutMigration(t *testing.T) {
 		t.Fatal("future schema accepted")
 	}
 	var changed int
-	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version != 2").Scan(&changed); err != nil || changed != 0 {
+	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version != 999").Scan(&changed); err != nil || changed != 0 {
 		t.Fatal("unsupported schema history was modified", changed, err)
 	}
 	if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE name='projects'").Scan(&changed); err != nil || changed != 0 {
