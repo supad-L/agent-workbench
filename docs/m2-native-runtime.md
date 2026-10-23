@@ -28,3 +28,23 @@ go test -race ./internal/sandbox -run TestRealOfflineExecution -v
 ```
 
 其他环境使用自己的显式本地镜像与共享目录。本项没有接入桌面执行入口，也没有改变 GPT/Claude 的 `executionReady=false`。在线出口、账号目录交接/单一刷新管理、原生会话持久化和真实编码证据仍待完成。
+
+## Codex 离线原生适配与统一接口
+
+`internal/runtime.NativeExecutor` 明确声明启动、context 取消、原生会话编号、结果、报告/未知 token 用量及恢复能力。`internal/runtime/codex.Executor` 通过上述容器执行器启动 `codex exec --json --ephemeral`，模型显式指定，项目上下文只走 stdin，不拼入 shell 或进程参数。Codex 自身仍使用 workspace-write 策略，外层容器提供写边界；Git 检查只为不含 `.git` 的独立快照显式跳过。
+
+JSONL 归一化覆盖会话开始、回合、Agent 文本、命令/文件/MCP/搜索工具事件；不透传推理、命令输出、工具参数或原始错误。工具事件属于原生进度，不是 Tool Broker 的新授权。相同已完成 item 去重、冲突重放/非法顺序/未完成工具/协议变化拒绝成功；多字节文本按 UTF-8 边界分块，单事件最多 32768 字节。缺失/部分 usage 保持未知，明确零值仍为已报告用量。
+
+只有提供方成功终态、进程零退出、容器清理核验及完成观察者都通过才返回 `completed`。截断、解析失败、异常退出或完成观察者失败返回 `uncertain`，context 取消/超时且完成清理后返回 `interrupted`。失败结果保留会话编号、草稿和已报告用量，不自动重试。平台任务验收仍由后续证据/审查决定。
+
+当前私有 HOME 在容器退出时销毁，因此能力明确为：会话编号可报告，原生 `resume=false`、`live_ready=false`、token 硬上限不支持；恢复仅能由平台新建 attempt 并重建上下文。显式传入旧会话编号会在启动前拒绝，不使用 `--last`。这保留原生持久化恢复的后续需求。
+
+协议依据已核对 [官方非交互模式](https://learn.chatgpt.com/docs/non-interactive-mode) 和 [官方 CLI 参数](https://learn.chatgpt.com/docs/developer-commands?surface=cli)。这不是 app-server 授权桥的替换，也未读取或交接 Electron 账号凭证。桌面原生执行入口继续保持禁用。
+
+验证：合成 JSONL 覆盖成功、已报告零/未知用量、重复事件、工具失败、损坏/截断/不支持事件、异常退出、取消、超时、清理未确认、观察者失败、长中文文本分块与拒绝原生恢复。另在真实 Podman 中运行脚本夹具，验证适配器→容器→stdin/JSONL→统一结果→清理的联调；**脚本输出是合成 CLI 协议，不是实际 Codex 或模型执行**。复现使用前述相同三个显式环境变量：
+
+```sh
+go test -race ./internal/runtime/codex -run TestRealOfflineCodexFixture -v
+```
+
+上述包测试不提供桌面角色绑定、账号调度/交接、费用入账或正式任务恢复；这些必须在认证/出口与 M3 服务接通后按原方案验收。
