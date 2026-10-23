@@ -20,7 +20,7 @@ class ConnectionStore {
     let encrypted;
     try { encrypted = await fs.readFile(this.file); }
     catch (error) {
-      if (error.code === 'ENOENT') return { version: 1, pepper: crypto.randomBytes(32).toString('hex'), entries: [] };
+      if (error.code === 'ENOENT') {const state={ version: 1, pepper: crypto.randomBytes(32).toString('hex'), entries: [] };Object.defineProperty(state,'fresh',{value:true});return state;}
       throw new Error('无法读取连接配置，原文件已保留。');
     }
     let state, rotated;
@@ -62,7 +62,7 @@ class ConnectionStore {
       enabled: summary.enabled, has_key: summary.hasKey, has_proxy: summary.hasProxy };
   }
   list() { return this.exclusive(async () => { const state = await this.read(); return state.entries.map(entry => this.summary(entry, state)); }); }
-  prepare(input) { return this.exclusive(async () => this.prepareInState(input, await this.read())); }
+  prepare(input) { return this.exclusive(async () => {const state=await this.read();const prepared=this.prepareInState(input,state);if(state.fresh)await this.write(state);return prepared;}); }
   prepareInState(input, state) {
     if (!input || typeof input.label !== 'string' || !input.label.trim() || input.label.length > 128) throw new Error('请填写连接名称');
     if (Buffer.byteLength(JSON.stringify(input)) > 65536) throw new Error('连接配置过大');

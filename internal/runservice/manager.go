@@ -3,6 +3,7 @@ package runservice
 
 import (
 	"agent-workbench/internal/apiconfig"
+	"agent-workbench/internal/catalog"
 	"agent-workbench/internal/runtime"
 	"agent-workbench/internal/runtime/agent"
 	"agent-workbench/internal/runtime/direct"
@@ -73,6 +74,28 @@ func (m *Manager) Start(ctx context.Context, p store.Principal, project string, 
 			return store.Run{}, errors.Join(err, finishErr)
 		}
 		return store.Run{}, err
+	}
+	return run, nil
+}
+
+// StartProbe starts a diagnostic under the same concurrency and accounting owner.
+func (m *Manager) StartProbe(ctx context.Context, p store.Principal, c catalog.Connection, key string, values map[string]string) (store.Run, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return store.Run{}, errors.New("运行服务正在关闭")
+	}
+	run, err := m.store.CreateProbeRun(ctx, p, c, key)
+	if err != nil {
+		return store.Run{}, err
+	}
+	if _, exists := m.active[run.ID]; exists || run.Status != "running" {
+		return run, nil
+	}
+	if err = m.launch(run, map[string]map[string]string{c.ID: values}); err != nil {
+		save, cancel := durable(ctx)
+		defer cancel()
+		return store.Run{}, errors.Join(err, m.store.FinishRun(save, run.ID, "failed", safeError(err), run.State))
 	}
 	return run, nil
 }
@@ -229,6 +252,17 @@ func (m *Manager) execute(ctx context.Context, run store.Run, values map[string]
 		run.Scope = scope
 	}
 	status, message := "completed", ""
+	if lastErr == nil && run.Kind == "connection_probe" {
+		verified := false
+		for _, result := range state.ToolResults {
+			if result.Name == "probe" && result.Text == "42" {
+				verified = true
+			}
+		}
+		if !verified || len(state.ToolResults) != 1 || state.Attempts != 2 {
+			lastErr = errors.New("连接探针未完成预期的两轮工具调用")
+		}
+	}
 	if lastErr != nil {
 		status = "failed"
 		message = safeError(lastErr)
@@ -276,7 +310,7 @@ func safeError(err error) string {
 }
 func safeLocalError(err error) string {
 	message := err.Error()
-	for _, prefix := range []string{"剩余自定义预算", "已启用自定义预算", "备用模型价格", "备用策略的额外费用", "已达到", "运行上下文", "工具调用参数", "模型返回未授权", "工具调用编号", "工具结果超过", "模型输出超过", "模型结果超过", "强制出口隔离", "请选择", "请配置", "额外请求头的值"} {
+	for _, prefix := range []string{"连接探针", "剩余自定义预算", "已启用自定义预算", "备用模型价格", "备用策略的额外费用", "已达到", "运行上下文", "工具调用参数", "模型返回未授权", "工具调用编号", "工具结果超过", "模型输出超过", "模型结果超过", "强制出口隔离", "请选择", "请配置", "额外请求头的值"} {
 		if len(message) >= len(prefix) && message[:len(prefix)] == prefix {
 			return message
 		}
@@ -326,6 +360,9 @@ func (m *Manager) RevokeRole(id string) {
 }
 
 func (m *Manager) tools(run store.Run) []agent.Binding {
+	if run.Kind == "connection_probe" {
+		return []agent.Binding{{Definition: runtime.Tool{Name: "probe", Description: "返回提供的整数，不产生外部副作用", Parameters: json.RawMessage(`{"type":"object","properties":{"value":{"type":"integer","const":42}},"required":["value"],"additionalProperties":false}`)}, Execute: func(context.Context, string, json.RawMessage) (string, error) { return "42", nil }}}
+	}
 	result := []agent.Binding{}
 	for _, name := range run.Role.Tools {
 		name := name

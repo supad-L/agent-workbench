@@ -67,3 +67,17 @@ test('拒绝系统加密缺失和 Linux 明文后端，失败不覆盖已有文�
   await assert.rejects(plaintext.save({ ...saved, label: '不可保存' }), /尚未就绪/);
   assert.deepEqual(fs.readFileSync(store.file), previous);
 });
+
+test('未保存的探针共享稳定账号身份，显式清除密钥才会删除已有值',async t=>{
+  const {store,cipher}=fixture(t);
+  const payload={label:'探针',config,key:'SYNTHETIC_UNSAVED_KEY'};
+  const first=await store.prepare(payload),second=await store.prepare(payload);
+  assert.equal(first.summary.accountID,second.summary.accountID);
+  const state=JSON.parse((await cipher.decryptStringAsync(fs.readFileSync(store.file))).result);
+  assert.equal(state.entries.length,0);
+  assert.equal(fs.readFileSync(store.file).includes(Buffer.from(payload.key)),false);
+  const saved=await store.save(payload);
+  const cleared=await store.save({...saved,key:'',clearKey:true});
+  assert.equal(cleared.hasKey,false);
+  await assert.rejects(store.resolve(saved.id,saved.revision),/已变化/);
+});

@@ -59,7 +59,7 @@ export default function Roles() {
   }
   async function save() {
     try {
-      const values = await form.validateFields(); setBusy(true);
+      await form.validateFields();const values=form.getFieldsValue(true); setBusy(true);
       const role: Role = { id: editing?.id || crypto.randomUUID(), revision: editing?.revision || 0,
         name: values.name.trim(), kind: values.kind, description: values.description || '', system_prompt: values.system_prompt,
         primary: { connection_id: values.connection_id || '', model_id: values.model_id || '' },

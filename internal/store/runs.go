@@ -37,6 +37,7 @@ type RunChoice struct {
 
 // Run is the durable state of a bounded read-only role trial.
 type Run struct {
+	Kind        string          `json:"kind"`
 	ID          string          `json:"id"`
 	ProjectID   string          `json:"project_id"`
 	ProjectName string          `json:"project_name"`
@@ -252,6 +253,9 @@ func (s *Store) Runs(ctx context.Context, p Principal, project string) (result [
 
 // CheckRunConfiguration rejects stale credentials/configurations before every turn and tool.
 func (s *Store) CheckRunConfiguration(ctx context.Context, run Run) error {
+	if run.Kind == "connection_probe" {
+		return nil
+	}
 	var roleRevision int
 	if err := s.db.QueryRowContext(ctx, "SELECT revision FROM roles WHERE id=?", run.Role.ID).Scan(&roleRevision); err != nil {
 		return ErrConflict

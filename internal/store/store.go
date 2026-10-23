@@ -186,6 +186,11 @@ func migrate(ctx context.Context, db *sql.DB) (err error) {
 			return err
 		}
 	}
+	if version < 4 {
+		if _, err = tx.ExecContext(ctx, "ALTER TABLE projects ADD COLUMN internal INTEGER NOT NULL DEFAULT 0; INSERT INTO schema_migrations VALUES(4)"); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 
@@ -290,7 +295,7 @@ func (s *Store) CreateProject(ctx context.Context, p Principal, key string, proj
 	}
 	return s.write(ctx, p, "", "project.create", key, struct{ Name, Source string }{project.Name, project.Source}, func(tx *sql.Tx) (any, error) {
 		project.CreatedAt = now()
-		_, err := tx.ExecContext(ctx, "INSERT INTO projects VALUES(?,?,?,?,?,0,?)", project.ID, project.Name, project.Source, project.Snapshot, []byte(project.Manifest), project.CreatedAt)
+		_, err := tx.ExecContext(ctx, "INSERT INTO projects(id,name,source,snapshot,manifest,active_version,created_at) VALUES(?,?,?,?,?,0,?)", project.ID, project.Name, project.Source, project.Snapshot, []byte(project.Manifest), project.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -309,7 +314,7 @@ func (s *Store) Projects(ctx context.Context, p Principal) (result []Project, re
 	if err := allowed(p, "", true); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, "SELECT id,name,source,snapshot,manifest,active_version,created_at FROM projects ORDER BY created_at DESC")
+	rows, err := s.db.QueryContext(ctx, "SELECT id,name,source,snapshot,manifest,active_version,created_at FROM projects WHERE internal=0 ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
 	}

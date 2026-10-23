@@ -1,11 +1,13 @@
-const {app,BrowserWindow,ipcMain,dialog,safeStorage,nativeImage}=require('electron');
+const {app,BrowserWindow,ipcMain,dialog,safeStorage,nativeImage,shell}=require('electron');
 const path=require('node:path');const fs=require('node:fs');const {pathToFileURL}=require('node:url');const {spawn}=require('node:child_process');const readline=require('node:readline');const {setTimeout:delay}=require('node:timers/promises');const {ConnectionStore}=require('./connections.cjs');
+const {CodexAccount,claudeReadiness}=require('./native-accounts.cjs');
 app.setName('Agent Workbench');
 const root=path.resolve(__dirname,'..');
 const argument=process.argv.find(value=>value.startsWith('--data-dir='));
 const dataDir=argument?path.resolve(argument.slice('--data-dir='.length)):(process.env.AWB_DESKTOP_DATA_DIR||(!app.isPackaged?path.join(root,'data','desktop'):app.getPath('userData')));
 app.setPath('userData',dataDir);
 let backend,endpoint,humanToken,window,stream,quitting=false;let connections;
+let codexAccount;
 const indexFile=path.join(root,'web','dist','index.html');const indexURL=pathToFileURL(indexFile).href;
 // This checks the application's own startup handshake, without UI automation.
 const smokeCheck=process.argv.includes('--smoke-check');
@@ -79,6 +81,14 @@ async function invoke(operation,payload,sender){
  case 'runs.resume':{const id=projectID(payload),runID=projectID({id:payload.run_id});const run=await request('GET',`/api/projects/${id}/runs/${runID}`);const resolved=await runValues(run.choices);return request('POST',`/api/projects/${id}/runs/${runID}/resume`,{values:resolved.values});}
  case 'usage.get':return request('GET','/api/usage');
  case 'budget.save':{if(!['CNY','USD'].includes(payload.budget?.currency))throw new Error('预算币种无效');return request('PUT','/api/budgets/'+payload.budget.currency,payload.budget);}
+ case 'accounts.list':return [await codexAccount.describe(),await claudeReadiness()];
+ case 'accounts.check':case 'accounts.login':case 'accounts.cancel':case 'accounts.logout':{
+  if(payload.provider!=='codex')throw new Error('Claude 强制出口链路尚未验证，当前不启动其登录或网络请求');
+  if(operation==='accounts.check')return codexAccount.check();
+  if(operation==='accounts.login')return codexAccount.login();
+  if(operation==='accounts.cancel')return codexAccount.cancelLogin();
+  return codexAccount.logout();
+ }
  case 'connections.delete':{const id=projectID(payload);await request('DELETE',`/api/connections/${id}?revision=${Number(payload.revision)}`);return connections.remove(payload.id,payload.revision);}
  case 'connections.check':return request('POST','/api/connections/check',payload.config);
  case 'connections.save':case 'connections.test':{
@@ -88,7 +98,7 @@ async function invoke(operation,payload,sender){
   if(prepared.entry.config.egress.mode==='explicit_proxy')await request('POST','/api/proxies/validate',{url:prepared.entry.secrets.proxy});
   // Re-read revisions after asynchronous validation, before the synchronous write.
   if(operation==='connections.save'){if(payload.id)await request('POST',`/api/connections/${projectID(payload)}/revoke`,{});const saved=await connections.save(payload);await request('PUT','/api/connections/'+saved.id,connections.projection(saved));return saved;}
-  return request('POST','/api/connections/test',{config:prepared.entry.config,values:connections.values(prepared.entry)});
+  return request('POST','/api/connections/test',{config:prepared.entry.config,connection:connections.projection(prepared.summary),values:connections.values(prepared.entry),idempotency_key:payload.idempotency_key});
  }
  default:throw new Error('操作不受支持');
  }
@@ -98,6 +108,7 @@ const single=app.requestSingleInstanceLock();if(!single)app.quit();else{
  app.on('second-instance',()=>{if(window){if(window.isMinimized())window.restore();window.focus();}});
  app.whenReady().then(async()=>{
   await startBackend();connections=new ConnectionStore(dataDir,safeStorage);
+  codexAccount=new CodexAccount(dataDir,{openExternal:url=>shell.openExternal(url)});
   const icon=nativeImage.createFromPath(path.join(root,'assets','app.png'));if(app.dock)app.dock.setIcon(icon);
   window=new BrowserWindow({show:!smokeCheck,width:1320,height:900,minWidth:960,minHeight:680,title:'Agent Workbench',backgroundColor:'#f3f6fa',icon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false}});
   window.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());window.webContents.on('will-attach-webview',event=>event.preventDefault());
@@ -109,12 +120,12 @@ const single=app.requestSingleInstanceLock();if(!single)app.quit();else{
  process.once('SIGTERM',()=>app.quit());process.once('SIGINT',()=>app.quit());
  app.on('before-quit',event=>{
   if(quitting)return;
-  quitting=true;clearTimeout(smokeTimer);stopEvents();
-  if(backend&&backend.exitCode===null&&backend.signalCode===null){
-   event.preventDefault();
+  event.preventDefault();quitting=true;clearTimeout(smokeTimer);stopEvents();
+  const stoppingBackend=new Promise(resolve=>{
+   if(!backend||backend.exitCode!==null||backend.signalCode!==null){resolve();return;}
    const timeout=setTimeout(()=>{backend.kill('SIGKILL');app.exit(1);},5000);
-   backend.once('exit',()=>{clearTimeout(timeout);app.quit();});
-   backend.kill('SIGTERM');
-  }
+   backend.once('exit',()=>{clearTimeout(timeout);resolve();});backend.kill('SIGTERM');
+  });
+  Promise.all([stoppingBackend,codexAccount?.close()]).then(()=>app.quit()).catch(()=>app.exit(1));
  });app.on('window-all-closed',()=>app.quit());
 }

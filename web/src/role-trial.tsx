@@ -63,7 +63,7 @@ export default function RoleTrial({ role, onClose }: { role: any; onClose: () =>
     {runs.length > 0 && <div style={{ marginTop: 24 }}><Select aria-label="历史试运行" style={{ width: '100%' }} placeholder="查看本角色的历史试运行"
       value={selected?.id} options={runs.map(run => ({ value: run.id, label: `${new Date(run.created_at).toLocaleString()} · ${states[run.status] || run.status}` }))}
       onChange={id => api<any>('runs.get', { id: project, run_id: id }).then(setSelected).catch(error => message.error(error.message))} /></div>}
-    {selected && <section className="trial-result"><Space><Tag color={selected.status === 'completed' ? 'green' : selected.status === 'running' ? 'blue' : 'orange'}>{states[selected.status] || selected.status}</Tag><small>已发起 {selected.state.attempts} 次请求</small></Space>
+    {selected && <section className="trial-result"><Space><Tag color={selected.status === 'completed' ? 'green' : selected.status === 'running' ? 'blue' : 'orange'}>{states[selected.status] || selected.status}</Tag><small>请求尝试 {selected.state.attempts} 次</small></Space>
       {selected.error && <Alert type="warning" showIcon title={selected.error} style={{ marginTop: 14 }} />}
       <Input.TextArea readOnly aria-label="试运行输出" rows={10} style={{ marginTop: 18 }} value={selected.state.completed ? selected.state.text : selected.preview || ''} placeholder="等待模型输出。未完成的文本不作为交付成果。" />
       <Space style={{ marginTop: 16 }}>{selected.status === 'running' && <Button danger loading={busy} onClick={() => operate('runs.cancel')}>取消运行</Button>}

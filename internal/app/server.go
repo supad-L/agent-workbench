@@ -346,26 +346,7 @@ func (a *Server) routes() {
 		}
 		reply(w, v)
 	})
-	a.mux.HandleFunc("POST /api/connections/test", func(w http.ResponseWriter, r *http.Request) {
-		if !human(r) {
-			replyError(w, store.ErrForbidden)
-			return
-		}
-		var b struct {
-			Config apiconfig.Config  `json:"config"`
-			Values map[string]string `json:"values"`
-		}
-		if err := decode(w, r, &b); err != nil {
-			replyError(w, err)
-			return
-		}
-		v, err := b.Config.Run(r.Context(), func(ref string) string { return b.Values[ref] })
-		if err != nil {
-			replyError(w, err)
-			return
-		}
-		reply(w, v)
-	})
+	a.mux.HandleFunc("POST /api/connections/test", a.probeConnection)
 }
 
 func (a *Server) createProject(w http.ResponseWriter, r *http.Request) {

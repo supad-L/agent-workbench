@@ -3,6 +3,7 @@ package app
 import (
 	"agent-workbench/contracts"
 	"agent-workbench/internal/apiconfig"
+	"agent-workbench/internal/catalog"
 	"agent-workbench/internal/connection"
 	"agent-workbench/internal/egress"
 	"agent-workbench/internal/store"
@@ -169,7 +170,7 @@ func TestCustomCompanyAPIsUseSelectedProtocolAndSecretHeaders(t *testing.T) {
 			if status != 200 || calls.Load() != 0 {
 				t.Fatal("format validation called a model", status, string(raw))
 			}
-			status, raw = call(t, s, a.HumanToken, "POST", "/api/connections/test", map[string]any{"config": config, "values": map[string]string{"AWB_COMPANY_KEY": "synthetic-company-key", "AWB_ROUTE": "synthetic-route"}})
+			status, raw = call(t, s, a.HumanToken, "POST", "/api/connections/test", map[string]any{"config": config, "idempotency_key": "probe-company", "connection": catalog.Connection{ID: "company", Revision: 1, Label: "公司连接", Config: config, AccountID: "company-account", MaxConcurrent: 1, Enabled: true, HasKey: true, Models: []catalog.Model{{ID: config.Model, Tools: "unknown"}}}, "values": map[string]string{"AWB_COMPANY_KEY": "synthetic-company-key", "AWB_ROUTE": "synthetic-route"}})
 			if status != 200 || calls.Load() != 2 || strings.Contains(string(raw), "synthetic-company-key") {
 				t.Fatal("custom tool probe failed or leaked credentials", status, string(raw))
 			}
