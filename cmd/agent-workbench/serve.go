@@ -29,7 +29,7 @@ func serve(ctx context.Context, args []string, w io.Writer) (returnErr error) {
 	if err != nil {
 		return err
 	}
-	defer func() { returnErr = errors.Join(returnErr, backend.Store.Close()) }()
+	defer func() { returnErr = errors.Join(returnErr, backend.Close()) }()
 	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(*port))
 	if err != nil {
 		return err

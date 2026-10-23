@@ -27,7 +27,7 @@ func local(t *testing.T) (*Server, *httptest.Server) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := a.Store.Close(); err != nil {
+		if err := a.Close(); err != nil {
 			t.Error(err)
 		}
 	})

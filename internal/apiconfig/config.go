@@ -4,6 +4,7 @@ package apiconfig
 import (
 	"agent-workbench/internal/connection"
 	"agent-workbench/internal/egress"
+	modelruntime "agent-workbench/internal/runtime"
 	"agent-workbench/internal/runtime/direct"
 	"agent-workbench/prototypes/protocol"
 	"bytes"
@@ -123,11 +124,11 @@ func (c Config) Validate() (Summary, error) {
 	return Summary{Endpoint: endpoint, Protocol: c.Endpoint.Protocol, Model: c.Model, AuthKind: auth, Network: c.Egress.Mode, TimeoutSeconds: timeout, MaxOutputTokens: tokens}, nil
 }
 
-// Run performs exactly the explicit, bounded tool probe using only requested secret references.
-func (c Config) Run(ctx context.Context, lookup func(string) string) (protocol.Report, error) {
+// OpenModel creates an explicitly configured client without reading ambient credentials.
+func (c Config) OpenModel(lookup func(string) string) (modelruntime.Model, func(), Summary, error) {
 	summary, err := c.Validate()
 	if err != nil {
-		return protocol.Report{}, err
+		return nil, nil, Summary{}, err
 	}
 	policy := c.Egress
 	if c.ProxyEnv != "" {
@@ -135,28 +136,45 @@ func (c Config) Run(ctx context.Context, lookup func(string) string) (protocol.R
 	}
 	client, err := egress.Client(policy)
 	if err != nil {
-		return protocol.Report{}, err
+		return nil, nil, Summary{}, err
 	}
-	defer client.CloseIdleConnections()
+	success := false
+	defer func() {
+		if !success {
+			client.CloseIdleConnections()
+		}
+	}()
+	client.Timeout = time.Duration(summary.TimeoutSeconds) * time.Second
 	key := ""
 	if summary.AuthKind != "none" {
 		key = lookup(c.KeyEnv)
 		if key == "" {
-			return protocol.Report{}, errors.New("请配置 API Key")
+			return nil, nil, Summary{}, errors.New("请配置 API Key")
 		}
 	}
 	headers := map[string]string{}
 	for name, ref := range c.HeaderEnvs {
 		value := lookup(ref)
 		if value == "" {
-			return protocol.Report{}, errors.New("额外请求头的值尚未配置")
+			return nil, nil, Summary{}, errors.New("额外请求头的值尚未配置")
 		}
 		headers[name] = value
 	}
 	model, err := direct.New(direct.Config{Endpoint: c.Endpoint, Key: key, AuthKind: summary.AuthKind, HTTPClient: client, Headers: headers, ChatDialect: c.ChatDialect})
 	if err != nil {
+		return nil, nil, Summary{}, err
+	}
+	success = true
+	return model, client.CloseIdleConnections, summary, nil
+}
+
+// Run performs exactly the explicit, bounded tool probe using requested secret references.
+func (c Config) Run(ctx context.Context, lookup func(string) string) (protocol.Report, error) {
+	model, closeClient, summary, err := c.OpenModel(lookup)
+	if err != nil {
 		return protocol.Report{}, err
 	}
+	defer closeClient()
 	probeCtx, cancel := context.WithTimeout(ctx, time.Duration(summary.TimeoutSeconds)*time.Second)
 	defer cancel()
 	return protocol.ConfiguredWithLimit(probeCtx, model, c.Model, c.Endpoint.Protocol, summary.MaxOutputTokens)

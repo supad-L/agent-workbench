@@ -181,6 +181,11 @@ func migrate(ctx context.Context, db *sql.DB) (err error) {
 			return err
 		}
 	}
+	if version < 3 {
+		if _, err = tx.ExecContext(ctx, migration3); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 

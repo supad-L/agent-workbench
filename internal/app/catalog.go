@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-workbench/internal/catalog"
+	"agent-workbench/internal/store"
 	"errors"
 	"net/http"
 	"strconv"
@@ -10,7 +11,7 @@ import (
 func (a *Server) catalogRoutes() {
 	a.mux.HandleFunc("POST /api/connections/validate", func(w http.ResponseWriter, r *http.Request) {
 		if !human(r) {
-			replyError(w, errors.New("仅用户可校验连接"))
+			replyError(w, store.ErrForbidden)
 			return
 		}
 		var c catalog.Connection
@@ -42,6 +43,20 @@ func (a *Server) catalogRoutes() {
 			replyError(w, errors.New("连接 ID 不匹配"))
 			return
 		}
+		if err := v.Validate(); err != nil {
+			replyError(w, err)
+			return
+		}
+		previous, err := a.Store.Connections(r.Context(), principal(r))
+		if err != nil {
+			replyError(w, err)
+			return
+		}
+		for _, old := range previous {
+			if old.ID == v.ID && v.Revision > old.Revision {
+				a.Runner.RevokeConnection(v.ID)
+			}
+		}
 		if err := a.Store.PutConnection(r.Context(), principal(r), v); err != nil {
 			replyError(w, err)
 			return
@@ -58,6 +73,7 @@ func (a *Server) catalogRoutes() {
 			replyError(w, err)
 			return
 		}
+		a.Runner.RevokeConnection(r.PathValue("id"))
 		reply(w, map[string]bool{"deleted": true})
 	})
 	a.mux.HandleFunc("GET /api/roles", func(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +86,7 @@ func (a *Server) catalogRoutes() {
 	})
 	a.mux.HandleFunc("GET /api/role-templates", func(w http.ResponseWriter, r *http.Request) {
 		if !human(r) {
-			replyError(w, errors.New("仅用户可读取角色模板"))
+			replyError(w, store.ErrForbidden)
 			return
 		}
 		reply(w, map[string]any{"templates": catalog.Templates(), "tools": catalog.ToolNames})
@@ -90,6 +106,7 @@ func (a *Server) catalogRoutes() {
 			replyError(w, err)
 			return
 		}
+		a.Runner.RevokeRole(saved.ID)
 		reply(w, saved)
 	})
 	a.mux.HandleFunc("DELETE /api/roles/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -102,6 +119,7 @@ func (a *Server) catalogRoutes() {
 			replyError(w, err)
 			return
 		}
+		a.Runner.RevokeRole(r.PathValue("id"))
 		reply(w, map[string]bool{"deleted": true})
 	})
 }

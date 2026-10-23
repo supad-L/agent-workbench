@@ -49,7 +49,7 @@ func TestHumanAgentAPIAuthorityAndEventReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := backend.Store.Close(); err != nil {
+		if err := backend.Close(); err != nil {
 			t.Error(err)
 		}
 	}()

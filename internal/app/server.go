@@ -6,6 +6,7 @@ import (
 	"agent-workbench/internal/apiconfig"
 	"agent-workbench/internal/egress"
 	"agent-workbench/internal/project"
+	"agent-workbench/internal/runservice"
 	"agent-workbench/internal/runtime/direct"
 	"agent-workbench/internal/store"
 	"context"
@@ -28,6 +29,7 @@ type principalKey struct{}
 // Server owns durable state and short-lived role-bound credentials.
 type Server struct {
 	Store      *store.Store
+	Runner     *runservice.Manager
 	DataDir    string
 	HumanToken string
 	mu         sync.Mutex
@@ -42,9 +44,16 @@ func Open(ctx context.Context, dataDir string) (*Server, error) {
 		return nil, err
 	}
 	a := &Server{Store: s, DataDir: dataDir, HumanToken: store.ID() + store.ID(), agents: map[string]store.Principal{}, mux: http.NewServeMux()}
+	a.Runner, err = runservice.New(ctx, s, nil)
+	if err != nil {
+		return nil, errors.Join(err, s.Close())
+	}
 	a.routes()
 	return a, nil
 }
+
+// Close stops model clients before releasing the database and instance lock.
+func (a *Server) Close() error { a.Runner.Close(); return a.Store.Close() }
 
 // Handler rejects unauthenticated and cross-origin API access.
 func (a *Server) Handler() http.Handler {
@@ -141,6 +150,7 @@ func human(r *http.Request) bool { return principal(r).Role == "human" }
 
 func (a *Server) routes() {
 	a.catalogRoutes()
+	a.runRoutes()
 	a.mux.HandleFunc("POST /api/proxies/validate", func(w http.ResponseWriter, r *http.Request) {
 		if !human(r) {
 			replyError(w, store.ErrForbidden)
