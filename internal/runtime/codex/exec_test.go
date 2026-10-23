@@ -293,3 +293,147 @@ func TestObserverErrorsStopBeforeCompletion(t *testing.T) {
 		})
 	}
 }
+
+func TestPersistentInvocationAndCheckpoint(t *testing.T) {
+	for _, resume := range []bool{false, true} {
+		t.Run(map[bool]string{false: "new", true: "resume"}[resume], func(t *testing.T) {
+			request := requestFixture()
+			if resume {
+				request.ResumeSessionID = "session-1"
+			}
+			var checkpoints []runtime.NativeCheckpoint
+			request.Checkpoint = func(_ context.Context, checkpoint runtime.NativeCheckpoint) error {
+				checkpoints = append(checkpoints, checkpoint)
+				return nil
+			}
+			executor := Executor{Base: sandbox.Execution{StateDirectory: "/private/session-state"}}
+			result, err := executor.run(context.Background(), request, func(runtime.NativeEvent) error { return nil }, func(_ context.Context, invocation sandbox.Execution, line func([]byte) error) (sandbox.ExecutionResult, error) {
+				command := invocation.Spec.Command
+				joined := strings.Join(command, " ")
+				if strings.Contains(joined, "--ephemeral") || strings.Contains(joined, "--last") || invocation.StateDirectory != "/private/session-state" {
+					t.Fatal(command)
+				}
+				if resume && !reflect.DeepEqual(command, []string{"/usr/local/bin/codex", "--sandbox", "workspace-write", "exec", "resume", "--json", "--skip-git-repo-check", "--model", request.Model, "session-1", "-"}) {
+					t.Fatal(command)
+				}
+				for _, event := range strings.Split(successStream, "\n") {
+					if err := line([]byte(event)); err != nil {
+						return cleanExecution(), err
+					}
+				}
+				return cleanExecution(), nil
+			})
+			if err != nil || result.Status != "completed" || !executor.Capabilities().Resume {
+				t.Fatalf("%+v %v", result, err)
+			}
+			if len(checkpoints) < 3 || checkpoints[0].SessionID != "session-1" || checkpoints[0].ProviderCompleted || !checkpoints[len(checkpoints)-1].ProviderCompleted || checkpoints[len(checkpoints)-1].Text != "完成" {
+				t.Fatal(checkpoints)
+			}
+		})
+	}
+}
+
+func TestResumeRejectsDifferentNativeSessionAndLostCheckpoint(t *testing.T) {
+	for _, mode := range []string{"wrong_session", "checkpoint_failure"} {
+		t.Run(mode, func(t *testing.T) {
+			request := requestFixture()
+			request.ResumeSessionID = "session-1"
+			if mode == "checkpoint_failure" {
+				request.Checkpoint = func(context.Context, runtime.NativeCheckpoint) error { return errors.New("journal unavailable") }
+			}
+			data := successStream
+			if mode == "wrong_session" {
+				data = strings.ReplaceAll(data, "session-1", "other-session")
+			}
+			result, err := (Executor{Base: sandbox.Execution{StateDirectory: "/private/session-state"}}).run(context.Background(), request, func(runtime.NativeEvent) error { return nil }, func(_ context.Context, _ sandbox.Execution, line func([]byte) error) (sandbox.ExecutionResult, error) {
+				for _, event := range strings.Split(data, "\n") {
+					if err := line([]byte(event)); err != nil {
+						return cleanExecution(), err
+					}
+				}
+				return cleanExecution(), nil
+			})
+			if err == nil || result.Status != "uncertain" {
+				t.Fatalf("%+v %v", result, err)
+			}
+		})
+	}
+}
+
+// This is a synthetic native protocol in a real container, never a model call.
+func TestRealOfflinePersistentCodexFixture(t *testing.T) {
+	kind := os.Getenv("AWB_TEST_SANDBOX_RUNTIME")
+	if kind == "" {
+		t.Skip("explicit offline container fixture opt-in required")
+	}
+	image, scratch := os.Getenv("AWB_TEST_SANDBOX_IMAGE"), os.Getenv("AWB_TEST_SANDBOX_SCRATCH")
+	if image == "" || scratch == "" {
+		t.Fatal("explicit image and shared scratch required")
+	}
+	root, err := os.MkdirTemp(scratch, "awb-persistent-codex-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(root); err != nil {
+			t.Error(err)
+		}
+	})
+	source, state := filepath.Join(root, "source"), filepath.Join(root, "native-state")
+	for _, dir := range []string{source, state} {
+		if err := os.Mkdir(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Chmod(state, 0777); err != nil {
+		t.Fatal(err)
+	}
+	script := `#!/bin/sh
+set -eu
+[ "$CODEX_HOME" = /awb-native-state ]
+[ "$HOME" = /tmp/awb-home ]
+read -r prompt
+if [ "$1" = exec ]; then
+ [ "$prompt" = initial ]
+ mkdir -p "$CODEX_HOME/sessions"
+ printf saved > "$CODEX_HOME/sessions/session-1"
+else
+ [ "$1" = --sandbox ]
+ [ "$4" = resume ]
+ [ "$9" = session-1 ]
+ [ "$prompt" = follow-up ]
+ [ "$(cat "$CODEX_HOME/sessions/session-1")" = saved ]
+ printf resumed > "$CODEX_HOME/sessions/session-1"
+fi
+cat <<'JSONL'
+` + successStream + "\nJSONL\n"
+	// argv positions: --sandbox workspace-write exec resume --json --skip-git-repo-check --model MODEL SESSION -.
+	if err := os.WriteFile(filepath.Join(source, "fixture-codex"), []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	executor := Executor{Binary: "/workspace/fixture-codex", Base: sandbox.Execution{Runtime: sandbox.RuntimeKind(kind), StateDirectory: state, Spec: sandbox.Spec{ImageID: image, SourceRoot: source, Scope: workspace.Scope{ReadPaths: []string{"."}}}}}
+	request := requestFixture()
+	request.Timeout = 10 * time.Second
+	request.Prompt = "initial\n"
+	var identity sandbox.ExecutionIdentity
+	executor.Base.BeforeLaunch = func(_ context.Context, id sandbox.ExecutionIdentity) error { identity = id; return nil }
+	result, err := executor.Run(context.Background(), request, func(runtime.NativeEvent) error { return nil })
+	if err != nil || result.Status != "completed" || identity.Name == "" {
+		t.Fatalf("first: %+v %v", result, err)
+	}
+	// A new adapter instance only receives the saved state path and explicit session ID.
+	resumed := Executor{Binary: executor.Binary, Base: executor.Base}
+	request.Prompt = "follow-up\n"
+	request.ResumeSessionID = result.SessionID
+	result, err = resumed.Run(context.Background(), request, func(runtime.NativeEvent) error { return nil })
+	if err != nil || result.Status != "completed" || !result.CleanupVerified {
+		t.Fatalf("resume: %+v %v", result, err)
+	}
+	data, err := os.ReadFile(filepath.Join(state, "sessions", "session-1"))
+	if err != nil || string(data) != "resumed" {
+		t.Fatal("state did not survive", err)
+	}
+	if err := sandbox.Cleanup(context.Background(), identity); err != nil {
+		t.Fatal("idempotent cleanup", err)
+	}
+}

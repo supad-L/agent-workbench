@@ -24,6 +24,16 @@ type NativeRequest struct {
 	ResumeSessionID string
 	Timeout         time.Duration
 	MaxOutputBytes  int
+	// Checkpoint must durably record a normalized snapshot or fail to stop execution.
+	Checkpoint func(context.Context, NativeCheckpoint) error
+}
+
+// NativeCheckpoint is progress, not proof of process exit or platform acceptance.
+type NativeCheckpoint struct {
+	SessionID         string `json:"session_id,omitempty"`
+	Text              string `json:"text,omitempty"`
+	Usage             Usage  `json:"usage"`
+	ProviderCompleted bool   `json:"provider_completed"`
 }
 
 // NativeEvent is normalized progress, not a tool authorization or verified result.

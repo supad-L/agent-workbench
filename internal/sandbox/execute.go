@@ -15,6 +15,12 @@ import (
 // The caller owns the snapshot and private writable directories for its lifetime.
 // It must never supply an original project, account directory or platform data.
 // Partial read scopes require an exported snapshot and are not supported here yet.
+// ExecutionIdentity is persisted before launch so recovery can find only this container.
+type ExecutionIdentity struct {
+	Runtime RuntimeKind `json:"runtime"`
+	Name    string      `json:"name"`
+}
+
 type Execution struct {
 	Runtime        RuntimeKind
 	Spec           Spec
@@ -22,6 +28,10 @@ type Execution struct {
 	Timeout        time.Duration
 	MaxOutputBytes int
 	MaxLineBytes   int
+	// StateDirectory is a private, platform-owned native state directory, never an account home.
+	StateDirectory string
+	// BeforeLaunch is a durable write-ahead hook; failure prevents process creation.
+	BeforeLaunch func(context.Context, ExecutionIdentity) error
 }
 
 // ExecutionResult records process supervision, not task acceptance or model access.
@@ -59,12 +69,36 @@ func execute(ctx context.Context, request Execution, onLine func([]byte) error, 
 	if err != nil {
 		return result, err
 	}
-	// Override the image entrypoint so the approved argv is the actual process.
+	// Persist only native state. HOME/cache/tmp remain private and ephemeral.
+	codexHome := "/tmp/awb-home/codex"
+	options := []string{"--interactive", "--env", "HOME=/tmp/awb-home", "--env", "XDG_CACHE_HOME=/tmp/awb-home/cache", "--env", "TMPDIR=/tmp"}
+	if request.StateDirectory != "" {
+		if err := realDirectory(request.StateDirectory); err != nil {
+			return result, err
+		}
+		if pathsOverlap(request.StateDirectory, request.Spec.SourceRoot) {
+			return result, errors.New("native state must not overlap source snapshot")
+		}
+		for _, directory := range request.Spec.Writable {
+			if pathsOverlap(request.StateDirectory, directory) {
+				return result, errors.New("native state must not overlap writable source")
+			}
+		}
+		codexHome = "/awb-native-state"
+		options = append(options, "--mount", "type=bind,source="+request.StateDirectory+",target="+codexHome)
+	}
+	options = append(options, "--env", "CODEX_HOME="+codexHome, "--entrypoint", request.Spec.Command[0], request.Spec.ImageID)
+	options = append(options, request.Spec.Command[1:]...)
 	imageIndex := len(args) - len(request.Spec.Command) - 1
-	args = append(args[:imageIndex:imageIndex], append([]string{"--interactive", "--env", "HOME=/tmp/awb-home", "--env", "CODEX_HOME=/tmp/awb-home/codex", "--env", "XDG_CACHE_HOME=/tmp/awb-home/cache", "--env", "TMPDIR=/tmp", "--entrypoint", request.Spec.Command[0], request.Spec.ImageID}, request.Spec.Command[1:]...)...)
+	args = append(args[:imageIndex:imageIndex], options...)
 	binary, err := lookup(string(request.Runtime))
 	if err != nil {
 		return result, errors.New("selected container engine unavailable; fallback disabled")
+	}
+	if request.BeforeLaunch != nil {
+		if err := request.BeforeLaunch(ctx, ExecutionIdentity{Runtime: request.Runtime, Name: request.Spec.Name}); err != nil {
+			return result, errors.New("native launch journal rejected execution")
+		}
 	}
 	runCtx, cancel := context.WithTimeout(ctx, request.Timeout)
 	defer cancel()
@@ -72,23 +106,7 @@ func execute(ctx context.Context, request Execution, onLine func([]byte) error, 
 	defer func() {
 		cleanupCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stop()
-		var remaining strings.Builder
-		cleanupErr := run(cleanupCtx, binary, []string{"container", "ls", "-aq", "--filter", "name=^/" + request.Spec.Name + "$"}, "", &remaining)
-		if cleanupErr == nil && strings.TrimSpace(remaining.String()) != "" {
-			removeArgs := []string{"rm", "-f"}
-			// Podman defaults to a 10s graceful stop even for rm -f; cancellation
-			// must kill immediately before the independent cleanup deadline.
-			if request.Runtime == Podman {
-				removeArgs = append(removeArgs, "--time=0")
-			}
-			removeArgs = append(removeArgs, request.Spec.Name)
-			cleanupErr = run(cleanupCtx, binary, removeArgs, "", io.Discard)
-			if cleanupErr == nil {
-				remaining.Reset()
-				cleanupErr = run(cleanupCtx, binary, []string{"container", "ls", "-aq", "--filter", "name=^/" + request.Spec.Name + "$"}, "", &remaining)
-			}
-		}
-		if cleanupErr != nil || strings.TrimSpace(remaining.String()) != "" {
+		if err := cleanupContainer(cleanupCtx, binary, request.Runtime, request.Spec.Name, run); err != nil {
 			result.Status = "uncertain"
 			returnErr = errors.Join(returnErr, errors.New("container cleanup could not be verified; do not release execution ownership"))
 			return
@@ -107,9 +125,6 @@ func execute(ctx context.Context, request Execution, onLine func([]byte) error, 
 		return result, runCtx.Err()
 	}
 	if err != nil {
-		if runCtx.Err() != nil {
-			return result, runCtx.Err()
-		}
 		return result, errors.New("isolated process failed; native diagnostics withheld")
 	}
 	result.Status = "completed"
@@ -174,6 +189,57 @@ func (w *lineWriter) finish() error {
 	if err := w.emit(); err != nil {
 		_, _ = w.fail(err)
 		return err
+	}
+	return nil
+}
+
+// Cleanup stops a previously journaled task container without starting a new one.
+// The caller must hold session ownership and supply its exact saved identity.
+func Cleanup(ctx context.Context, identity ExecutionIdentity) error {
+	if identity.Runtime != Docker && identity.Runtime != Podman || !validContainerIdentity(identity.Name) {
+		return errors.New("invalid owned container identity")
+	}
+	binary, err := exec.LookPath(string(identity.Runtime))
+	if err != nil {
+		return errors.New("selected container engine unavailable; cleanup unconfirmed")
+	}
+	return cleanupContainer(ctx, binary, identity.Runtime, identity.Name, runProcess)
+}
+func validContainerIdentity(name string) bool {
+	suffix, ok := strings.CutPrefix(name, "awb-probe-")
+	if !ok || len(suffix) != 26 {
+		return false
+	}
+	for _, r := range suffix {
+		if (r < 'a' || r > 'z') && (r < '2' || r > '7') {
+			return false
+		}
+	}
+	return true
+}
+func cleanupContainer(ctx context.Context, binary string, kind RuntimeKind, name string, run processRunner) error {
+	var remaining strings.Builder
+	list := []string{"container", "ls", "-aq", "--filter", "name=^/" + name + "$"}
+	if err := run(ctx, binary, list, "", &remaining); err != nil {
+		return errors.New("container inventory unavailable")
+	}
+	if strings.TrimSpace(remaining.String()) != "" {
+		remove := []string{"rm", "-f"}
+		// Podman rm -f otherwise waits ten seconds even when force was requested.
+		if kind == Podman {
+			remove = append(remove, "--time=0")
+		}
+		remove = append(remove, name)
+		if err := run(ctx, binary, remove, "", io.Discard); err != nil {
+			return errors.New("owned container removal unconfirmed")
+		}
+		remaining.Reset()
+		if err := run(ctx, binary, list, "", &remaining); err != nil {
+			return errors.New("container cleanup inventory unavailable")
+		}
+	}
+	if strings.TrimSpace(remaining.String()) != "" {
+		return errors.New("owned container still present")
 	}
 	return nil
 }

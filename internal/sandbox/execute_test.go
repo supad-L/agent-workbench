@@ -315,3 +315,78 @@ func TestDockerExecutionCleanup(t *testing.T) {
 		t.Fatalf("%+v %v", result, err)
 	}
 }
+
+func TestPersistentStateAndWriteAheadLaunch(t *testing.T) {
+	for _, mode := range []string{"success", "journal_failure", "source_alias", "writable_alias", "root_alias", "symlink"} {
+		t.Run(mode, func(t *testing.T) {
+			request := executionFixture(t)
+			state, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.StateDirectory = state
+			switch mode {
+			case "source_alias":
+				request.StateDirectory = request.Spec.SourceRoot
+			case "writable_alias":
+				request.Spec.Scope.WriteDirs = []string{"src/"}
+				request.Spec.Writable = map[string]string{"src/": state}
+			case "root_alias":
+				request.StateDirectory = string(filepath.Separator)
+			case "symlink":
+				link := filepath.Join(t.TempDir(), "link")
+				if err := os.Symlink(state, link); err != nil {
+					t.Fatal(err)
+				}
+				request.StateDirectory = link
+			}
+			journaled, launched := false, false
+			request.BeforeLaunch = func(_ context.Context, identity ExecutionIdentity) error {
+				if !validContainerIdentity(identity.Name) || identity.Runtime != Podman {
+					t.Fatal(identity)
+				}
+				journaled = true
+				if mode == "journal_failure" {
+					return errors.New("journal unavailable")
+				}
+				return nil
+			}
+			runner := func(_ context.Context, _ string, args []string, _ string, out io.Writer) error {
+				if args[0] == "run" {
+					launched = true
+					if !journaled {
+						t.Fatal("process started before journal")
+					}
+					compiled := strings.Join(args, " ")
+					for _, policy := range []string{"--network=none", "CODEX_HOME=/awb-native-state", "HOME=/tmp/awb-home", "source=" + state + ",target=/awb-native-state"} {
+						if !strings.Contains(compiled, policy) {
+							t.Fatal("missing", policy)
+						}
+					}
+					_, err := io.WriteString(out, "saved\n")
+					return err
+				}
+				if args[0] != "container" {
+					t.Fatal(args)
+				}
+				return nil
+			}
+			result, err := execute(context.Background(), request, func([]byte) error { return nil }, func(string) (string, error) { return "selected-podman", nil }, runner)
+			if mode == "success" {
+				if err != nil || !launched || !result.CleanupVerified {
+					t.Fatalf("%+v %v", result, err)
+				}
+			} else if err == nil || launched {
+				t.Fatalf("invalid state launched: %+v %v", result, err)
+			}
+		})
+	}
+}
+
+func TestCleanupRejectsUnownedIdentity(t *testing.T) {
+	for _, identity := range []ExecutionIdentity{{Runtime: Podman, Name: "other-container"}, {Runtime: "other", Name: "awb-probe-" + strings.Repeat("a", 26)}, {Runtime: Docker, Name: "awb-probe-short"}} {
+		if err := Cleanup(context.Background(), identity); err == nil {
+			t.Fatal("accepted", identity)
+		}
+	}
+}

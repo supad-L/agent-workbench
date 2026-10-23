@@ -1,5 +1,5 @@
 // Package codex adapts bounded Codex exec JSONL inside an offline container.
-// Authentication, network egress and persistent sessions are not enabled here.
+// Authentication and network egress are not enabled here; private session state is optional.
 package codex
 
 import (
@@ -25,11 +25,11 @@ type Executor struct {
 var _ runtime.NativeExecutor = Executor{}
 
 // Capabilities reports the implemented offline adapter, not real model evidence.
-func (Executor) Capabilities() runtime.NativeCapabilities {
-	return runtime.NativeCapabilities{SessionID: true, ContextRebuild: true, Cancel: true}
+func (e Executor) Capabilities() runtime.NativeCapabilities {
+	return runtime.NativeCapabilities{SessionID: true, Resume: e.Base.StateDirectory != "", ContextRebuild: true, Cancel: true}
 }
 
-// Run starts a fresh ephemeral invocation and never retries or resumes implicitly.
+// Run starts or explicitly resumes one invocation; it never retries implicitly.
 // Account and online execution remain blocked by sandbox.Execute's fixed policy.
 func (e Executor) Run(ctx context.Context, request runtime.NativeRequest, emit func(runtime.NativeEvent) error) (runtime.NativeResult, error) {
 	return e.run(ctx, request, emit, sandbox.Execute)
@@ -39,7 +39,7 @@ type executeFunc func(context.Context, sandbox.Execution, func([]byte) error) (s
 
 func (e Executor) run(ctx context.Context, request runtime.NativeRequest, emit func(runtime.NativeEvent) error, execute executeFunc) (runtime.NativeResult, error) {
 	result := runtime.NativeResult{Status: "blocked"}
-	if request.ResumeSessionID != "" {
+	if request.ResumeSessionID != "" && (e.Base.StateDirectory == "" || !identifier(request.ResumeSessionID, 128) || strings.HasPrefix(request.ResumeSessionID, "-")) {
 		return result, errors.New("native resume unavailable; create a new attempt with rebuilt context")
 	}
 	if !validModel(request.Model) || strings.TrimSpace(request.Prompt) == "" || !utf8.ValidString(request.Prompt) || len(request.Prompt) > 1<<20 || emit == nil {
@@ -58,8 +58,25 @@ func (e Executor) run(ctx context.Context, request runtime.NativeRequest, emit f
 	invocation.MaxOutputBytes = request.MaxOutputBytes
 	invocation.MaxLineBytes = min(request.MaxOutputBytes, 256<<10)
 	invocation.Spec.Command = []string{binary, "exec", "--json", "--ephemeral", "--skip-git-repo-check", "--sandbox", "workspace-write", "--model", request.Model, "-"}
+	if e.Base.StateDirectory != "" {
+		invocation.Spec.Command = []string{binary, "exec", "--json", "--skip-git-repo-check", "--sandbox", "workspace-write", "--model", request.Model, "-"}
+		if request.ResumeSessionID != "" {
+			// resume does not accept exec's local --sandbox flag; use the global policy.
+			invocation.Spec.Command = []string{binary, "--sandbox", "workspace-write", "exec", "resume", "--json", "--skip-git-repo-check", "--model", request.Model, request.ResumeSessionID, "-"}
+		}
+	}
 	parser := newStream(emit)
-	execution, err := execute(ctx, invocation, parser.line)
+	parser.expectedSessionID = request.ResumeSessionID
+	line := func(raw []byte) error {
+		if err := parser.line(raw); err != nil {
+			return err
+		}
+		if request.Checkpoint != nil {
+			return request.Checkpoint(ctx, runtime.NativeCheckpoint{SessionID: parser.sessionID, Text: parser.text.String(), Usage: parser.usage, ProviderCompleted: parser.completed})
+		}
+		return nil
+	}
+	execution, err := execute(ctx, invocation, line)
 	result = runtime.NativeResult{Status: "uncertain", SessionID: parser.sessionID, Text: parser.text.String(), Usage: parser.usage, CleanupVerified: execution.CleanupVerified}
 	if execution.Status == "blocked" {
 		result.Status = "blocked"

@@ -13,6 +13,7 @@ import (
 type stream struct {
 	emit                       func(runtime.NativeEvent) error
 	sessionID                  string
+	expectedSessionID          string
 	started, completed, failed bool
 	text                       strings.Builder
 	usage                      runtime.Usage
@@ -55,7 +56,7 @@ func (s *stream) line(line []byte) error {
 	}
 	switch event.Type {
 	case "thread.started":
-		if s.sessionID != "" || s.started || !identifier(event.ThreadID, 128) {
+		if s.sessionID != "" || s.started || !identifier(event.ThreadID, 128) || s.expectedSessionID != "" && event.ThreadID != s.expectedSessionID {
 			return invalidStream()
 		}
 		s.sessionID = event.ThreadID

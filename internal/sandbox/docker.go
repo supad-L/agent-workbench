@@ -83,7 +83,7 @@ func Arguments(spec Spec) ([]string, error) {
 
 func pathsOverlap(a, b string) bool {
 	a, b = strings.ToLower(a), strings.ToLower(b)
-	return a == b || strings.HasPrefix(a, b+string(filepath.Separator)) || strings.HasPrefix(b, a+string(filepath.Separator))
+	return a == b || strings.HasPrefix(a, strings.TrimRight(b, string(filepath.Separator))+string(filepath.Separator)) || strings.HasPrefix(b, strings.TrimRight(a, string(filepath.Separator))+string(filepath.Separator))
 }
 
 func realDirectory(name string) error {

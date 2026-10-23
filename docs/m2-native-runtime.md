@@ -48,3 +48,15 @@ go test -race ./internal/runtime/codex -run TestRealOfflineCodexFixture -v
 ```
 
 上述包测试不提供桌面角色绑定、账号调度/交接、费用入账或正式任务恢复；这些必须在认证/出口与 M3 服务接通后按原方案验收。
+
+## 持久会话目录与指定会话续接（后续实现）
+
+2026-10-23：`sandbox.Execution.StateDirectory` 可绑定平台专属的原生状态目录到 `/awb-native-state`，只改变 `CODEX_HOME`；HOME、缓存和 tmp 继续为容器私有临时目录，网络保持禁用。目录必须 canonical、无符号链接，且与源快照及所有可写源目录互不重叠，包括拒绝根目录别名。没有导入或挂载任何宿主账号目录。
+
+配置持久目录时，Codex 新运行不再使用 `--ephemeral`，只有显式提供会话编号才构造 `exec resume <ID> -`；不使用 `--last`，不自动重试，返回的原生会话编号必须匹配指定编号。保持临时模式的原调用行为不变。原生能力中的 resume 表示此离线模式已实现，live_ready 仍为 false。
+
+每个合法 JSONL 边界可以写入规范化检查点（会话编号、草稿、用量、提供方终态），检查点写入失败即停止运行。容器身份经 `BeforeLaunch` 在启动前交给持久日志；日志拒绝时不创建进程。`sandbox.Cleanup` 可在持有该会话所有权时按已保存身份核查/清理原容器，不能启动新容器。
+
+参数依据重新核对官方非交互文档及本机官方 CLI 的 `exec resume --help`（全新专用 CODEX_HOME，仅帮助命令）。resume 没有局部 sandbox 参数，故把沙箱策略放到全局参数位置；提示词继续仅走 stdin。
+
+规则单元测试、全量 Go verify/race、lint 通过。真实 Podman + 已有 Alpine 镜像中，两次不同容器/适配器实例共享同一私有状态，第二次按指定 session ID 续接合成 CLI 脚本通过；同时回归取消、超时、输出超限与清理。该证据仅为真实容器内合成 CLI 协议，未执行真实 Codex 推理、真实账号或在线请求；完整会话管理与重启状态判定另行实施。
