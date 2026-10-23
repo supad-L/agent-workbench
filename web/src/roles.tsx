@@ -90,10 +90,10 @@ export default function Roles() {
           const connection = bound(role);
           const model=connection?.models?.find((item:any)=>item.id===role.primary.model_id);
           return <Card key={role.id} className={`role-card role-${role.kind}`}>
-            <div className="role-card-heading"><Avatar className="role-avatar" icon={<TeamOutlined aria-hidden="true" />} /><div><h3>{role.name}</h3><Tag>{kinds.find(kind => kind.value === role.kind)?.label}</Tag></div>
+            <div className="role-card-heading"><Avatar className="role-avatar" icon={<TeamOutlined aria-hidden="true" />} /><div><h3 title={role.name}>{role.name}</h3><Tag>{kinds.find(kind => kind.value === role.kind)?.label}</Tag></div>
               <Tag color={role.enabled ? 'green' : 'default'}>{role.enabled ? '已启用' : '已停用'}</Tag></div>
-            <p className="role-description">{role.description || '尚未填写职责说明'}</p>
-            <dl className="role-binding"><dt>连接</dt><dd>{connection?.label || '未绑定'}</dd><dt>模型</dt><dd>{role.primary.model_id || '未选择'}</dd></dl>
+            <p className="role-description" title={role.description}>{role.description || '尚未填写职责说明'}</p>
+            <dl className="role-binding"><dt>连接</dt><dd title={connection?.label}>{connection?.label || '未绑定'}</dd><dt>模型</dt><dd title={role.primary.model_id}>{role.primary.model_id || '未选择'}</dd></dl>
             <div className="role-tool-list">{role.tools.slice(0, 4).map(tool => <Tag key={tool}>{labels[tool] || tool}</Tag>)}{role.tools.length > 4 && <Tag>另 {role.tools.length - 4} 项</Tag>}</div>
             {role.enabled && connection?.enabled === false && <Alert type="warning" title="绑定连接已停用，角色暂不可运行" />}
             {role.enabled&&connection&&!model&&<Alert type="warning" title="绑定模型已移除，请重新选择模型"/>}
