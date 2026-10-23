@@ -1,6 +1,6 @@
 # 开发与运行
 
-当前提供 M1 本地服务与 Electron 桌面工作台，附带三种协议的自定义 API 配置。真实主 Agent、派工和审查闭环仍按后续阶段接入。原 M0 探针继续保留。
+当前提供 M1 项目与方案功能，以及 M2 的角色、三种协议 API 运行、用量预算和官方 GPT 授权入口。M2 原生编程工具执行未验收，真实主 Agent、派工和审查闭环仍按后续阶段接入。原 M0 探针继续保留。
 
 ## 桌面运行与打包
 
@@ -23,12 +23,14 @@ python3 scripts/frontend.py package:mac
 python3 scripts/frontend.py test:desktop
 python3 scripts/frontend.py test:ui
 python3 scripts/m1-smoke.py
+python3 scripts/m2-smoke.py
+python3 scripts/frontend.py exec node scripts/native-auth-smoke.cjs
 python3 scripts/desktop-smoke.py
 ~~~
 
-`m1-smoke.py` 使用临时源项目和真实本地服务，结束后清理夹具；`desktop-smoke.py` 启动实际应用，验证渲染层启动握手、后端健康、退出和再次启动，不自动点击界面。两者均不请求模型。仅修改文档时无需重新打包，修改 Go/前端/桌面代码后应先重建相应部分，再打包。
+`m1-smoke.py` 使用临时源项目和真实本地服务；`m2-smoke.py` 使用本机合成网关验证角色工具循环、连接测试记账、预算、幂等及重启，不请求服务商。`native-auth-smoke.cjs` 仅在全新工作台目录验证官方 Codex 握手和空账号状态，不登录、不推理。`desktop-smoke.py` 启动实际应用，验证渲染层握手、后端健康、退出和再次启动，不自动点击界面。临时夹具会清理，脱敏报告位于忽略的 `output/verification/`。仅修改文档时无需重新打包，修改 Go/前端/桌面代码后应先重建相应部分，再打包。
 
-独立后端入口为 `./bin/agent-workbench serve --data-dir /ABSOLUTE/DATA_DIRECTORY`。它输出包含本地人类令牌的私有启动握手，不要把原始 stdout 上传；一般使用桌面入口即可。M1 HTTP 合同见 [本地接口说明](./m1-api.md)，操作见 [中文指南](./工作台-中文操作指南.md)。
+独立后端入口为 `./bin/agent-workbench serve --data-dir /ABSOLUTE/DATA_DIRECTORY`。它输出包含本地人类令牌的私有启动握手，不要把原始 stdout 上传；一般使用桌面入口即可。当前数据库 schema 为 4，旧数据库自动事务升级，升级后不应使用旧二进制打开。操作前可在应用退出后备份整个数据目录。HTTP 合同见 [M1 基础接口](./m1-api.md) 和 [M2 新增及变更接口](./m2-api.md)，操作见 [中文指南](./工作台-中文操作指南.md) 和 [角色与连接指南](./M2-角色与连接操作指南.md)。
 
 ## 环境
 
@@ -102,7 +104,7 @@ configs/api-probe.example.json 提供配置格式。复制到忽略的 config.lo
 ./bin/agent-workbench api-probe --config config.local.json
 ~~~
 
-这个命令会向配置的服务发送两轮模型请求，可能消耗套餐或费用。唯一工具是无外部副作用的 probe，不读项目文件，不执行命令。报告只显示工具回合与用量是否可知，不回显原始模型文本、密钥或代理密码。
+这个命令会向配置的服务发送两轮模型请求，可能消耗套餐或费用。唯一工具是无外部副作用的 probe，不读项目文件，不执行命令。报告只显示工具回合与用量是否可知，不回显原始模型文本、密钥或代理密码。独立 CLI 探针不接入桌面 SQLite 的预算和账本；桌面“测试连接”和“角色试运行”则统一经过账号并发、预算预约及用量结算。
 
 网络 mode=system、dns_mode=system 对应本机 TUN 路由。若选择显式代理，改为 mode=explicit_proxy、dns_mode=proxy，并用 proxy_env 指向你配置的 AWB_ 代理 URL 环境变量。enforced_proxy 当前明确返回未就绪，普通代理测试不能替代 Claude 登录浏览器和 CLI 的强制出口验收。
 
