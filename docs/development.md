@@ -122,6 +122,8 @@ go test ./internal/runtime/direct -run '^$' -fuzz FuzzSSEFraming -fuzztime 5s -p
 
 ## 验证证据
 
+`python3 scripts/dev.py build` 和 `verify` 会额外生成 `bin/awb-network-probe-linux-amd64`、`bin/awb-network-probe-linux-arm64`，供打包应用在独立容器内检测网络。只构建当前后端二进制会导致新诊断页缺少 helper；缺少时明确未就绪。环境/出口检测入口及显式真实容器测试见 [诊断记录](./m2-native-environment-preflight-2026-10-27.md)。
+
 `python3 scripts/frontend.py exec node scripts/native-account-smoke.cjs` 使用新建空认证命名空间，将真实 Go 后端与官方 Codex 账号桥接通，检查账号槽及认证进程停止。需先构建后端，不登录、不调用模型、不读取用户原有认证目录。真实容器内的账号退出取消探针见 [账号运行协调记录](./m2-native-account-coordination-2026-10-24.md)。
 
 建议保存以下输出到 output/verification/，该目录不提交密钥或真实账号日志：verify、lint、doctor、protocol-probe、contracts-check。当前真实接入和容器隔离状态见 m0-report.md。

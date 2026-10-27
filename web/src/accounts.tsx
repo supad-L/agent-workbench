@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { App, Alert, Button, Card, Popconfirm, Space, Tag } from 'antd';
 import { api } from './api';
 import { ConnectionAccess, type AccountProvider } from './connection-guide';
+import NativeEnvironment from './native-environment';
 
 const coordinationLabels: Record<string, string> = { unverified: '等待授权核对', idle: '空闲', executing: '执行占用中', authenticating: '认证操作中', blocked: '清理或交接待核对', closed: '服务已关闭' };
 
@@ -54,6 +55,7 @@ export default function Accounts({ provider, onConnections, onAccounts }: { prov
         </Space> : <Button disabled style={{ marginTop: 20 }}>等待强制出口验证后开放登录</Button>}
       </Card>)}</div>
       <p className="role-template-note">此处的订阅账号尚不能绑定为开发执行连接。公司中转、Coding Plan 与 DeepSeek 等 API 请在“模型连接”配置。</p>
+      <NativeEnvironment provider={provider} />
     </div>
   </>;
 }

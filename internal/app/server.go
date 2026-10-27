@@ -7,6 +7,7 @@ import (
 	"agent-workbench/internal/apiconfig"
 	"agent-workbench/internal/egress"
 	"agent-workbench/internal/nativeservice"
+	"agent-workbench/internal/preflight"
 	"agent-workbench/internal/project"
 	"agent-workbench/internal/runservice"
 	"agent-workbench/internal/runtime/direct"
@@ -34,6 +35,7 @@ type Server struct {
 	Runner     *runservice.Manager
 	Native     *nativeservice.Manager
 	Accounts   *accountcoord.Coordinator
+	Preflight  *preflight.Service
 	DataDir    string
 	HumanToken string
 	mu         sync.Mutex
@@ -58,6 +60,12 @@ func Open(ctx context.Context, dataDir string) (*Server, error) {
 		a.Runner.Close()
 		return nil, errors.Join(err, s.Close())
 	}
+	a.Preflight, err = preflight.New(ctx, filepath.Join(dataDir, "environment-checks"))
+	if err != nil {
+		a.Native.Close()
+		a.Runner.Close()
+		return nil, errors.Join(err, s.Close())
+	}
 	a.routes()
 	return a, nil
 }
@@ -65,6 +73,7 @@ func Open(ctx context.Context, dataDir string) (*Server, error) {
 // Close stops model clients before releasing the database and instance lock.
 func (a *Server) Close() error {
 	a.Accounts.Close()
+	a.Preflight.Close()
 	a.Native.Close()
 	a.Runner.Close()
 	return a.Store.Close()
@@ -143,7 +152,7 @@ func replyError(w http.ResponseWriter, err error) {
 	if errors.Is(err, store.ErrForbidden) {
 		status = 403
 	}
-	if errors.Is(err, store.ErrConflict) || errors.Is(err, accountcoord.ErrBusy) || errors.Is(err, accountcoord.ErrUnavailable) {
+	if errors.Is(err, store.ErrConflict) || errors.Is(err, accountcoord.ErrBusy) || errors.Is(err, accountcoord.ErrUnavailable) || errors.Is(err, preflight.ErrBusy) {
 		status = 409
 	}
 	if errors.Is(err, store.ErrNotFound) {
@@ -168,6 +177,23 @@ func (a *Server) routes() {
 	a.runRoutes()
 	a.nativeRoutes()
 	a.accountRoutes()
+	a.mux.HandleFunc("POST /api/native-environment/check", func(w http.ResponseWriter, r *http.Request) {
+		if !human(r) {
+			replyError(w, store.ErrForbidden)
+			return
+		}
+		var input preflight.Request
+		if err := decode(w, r, &input); err != nil {
+			replyError(w, err)
+			return
+		}
+		report, err := a.Preflight.Inspect(r.Context(), input)
+		if err != nil {
+			replyError(w, err)
+			return
+		}
+		reply(w, report)
+	})
 	a.mux.HandleFunc("POST /api/proxies/validate", func(w http.ResponseWriter, r *http.Request) {
 		if !human(r) {
 			replyError(w, store.ErrForbidden)

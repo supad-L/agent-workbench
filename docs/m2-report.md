@@ -63,3 +63,5 @@
 原生持久化后续：独立运行目录、指定 ID 续接、SQLite 检查点、重启核对及只读记录页已实现；真实 Podman 内合成 CLI 的跨数据库续接、强制终止平台进程后的 uncertain/清理/不重发通过。10 月 24 日补齐桌面视觉复核并修复预加载桥接，详见 [桌面复核](./native-session-ui-review-2026-10-24.md) 与 [持久会话恢复记录](./m2-native-session-recovery-2026-10-23.md)。
 
 2026-10-24 账号运行协调：已接通 Go 单槽、代际撤销、退出取消及清理/持久收尾等待，与 Electron 单一认证所有者和独占标记协作。真实 Podman 合成执行退出取消、官方 CLI 空账号与实际桌面检查通过；22 项桌面、22 项 UI 及 Go verify/race/lint、打包重启通过。没有接通真实认证交接或在线执行，M2-05 仍未验收。详见 [账号运行协调记录](./m2-native-account-coordination-2026-10-24.md)。
+
+2026-10-27 环境与出口诊断：显式引擎/本地镜像/断网 CLI 版本、容器内网络 helper、代理失败不直连、精确清理与恢复日志、订阅页表单已实现。24 UI、22 桌面、Go verify/race/lint、M1/M2 冒烟、macOS 打包重启和实际深浅色桌面操作通过；真实 Podman 仅验证本地目标及合成代理。既有 Alpine 缺 Codex，正确保持编码未就绪；未进行真实账号或模型请求。详见 [环境检测记录](./m2-native-environment-preflight-2026-10-27.md)。

@@ -71,6 +71,12 @@ def main():
         for command in commands[args.command]:
             run(command, env)
 
+    if args.command in ["build", "verify"]:
+        for arch in ["amd64", "arm64"]:
+            helper_env = dict(env, GOOS="linux", GOARCH=arch, CGO_ENABLED="0")
+            run([go, "build", "-trimpath", "-ldflags=-s -w", "-o",
+                 "bin/awb-network-probe-linux-" + arch, "./cmd/awb-network-probe"], helper_env)
+
 
 if __name__ == "__main__":
     main()

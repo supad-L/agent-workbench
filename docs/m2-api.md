@@ -77,3 +77,7 @@ GET `/api/projects/{id}/native-sessions` 返回会话/本地恢复条件列表�
 ## 原生账号协调控制面（2026-10-24）
 
 GET `/api/native-account` 读取保守共享槽状态；POST `/api/native-account/auth/begin` 使用 `{kind}` 领取认证所有权；POST `/api/native-account/auth/finish` 使用匹配的 `{operation,authenticated,owner_active,healthy}` 回执收尾。仅人类身份，严格拒绝未知字段和凭证；冲突返回 409。begin/finish 由桌面主进程调用，没有对应渲染层 IPC，也不启动任何模型。登录/退出等待原执行清理及持久收尾，检测/刷新不抢占执行。详见 [协调记录](./m2-native-account-coordination-2026-10-24.md)。
+
+## 原生环境诊断（2026-10-27）
+
+POST `/api/native-environment/check` 接收 `{provider,runtime,image,binary,scratch,mode,target,proxy?}`，返回 `{checks,image_id?,version?,ip?,checked_at,environment_ready,execution_ready:false}`。仅人类身份，单个诊断；并发冲突 409，配置错误 400，基础设施缺失通过检查项显示 blocked。目标留空不发网络请求，代理值仅瞬时处理，不写日志或结果。没有执行任务的授权含义。桌面新增受限 `native.environment.check` IPC，见 [环境诊断记录](./m2-native-environment-preflight-2026-10-27.md)。

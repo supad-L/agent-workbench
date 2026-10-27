@@ -54,6 +54,14 @@
       {
         "from": "bin/agent-workbench",
         "to": "bin/agent-workbench"
+      },
+      {
+        "from": "bin/awb-network-probe-linux-amd64",
+        "to": "bin/awb-network-probe-linux-amd64"
+      },
+      {
+        "from": "bin/awb-network-probe-linux-arm64",
+        "to": "bin/awb-network-probe-linux-arm64"
       }
     ],
     "mac": {
