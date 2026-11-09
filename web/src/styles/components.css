@@ -158,6 +158,7 @@
 .mac-form .ant-form-item-extra { color: var(--label-2); }
 .mac-form .ant-form-item.stack .ant-form-item-row { flex-direction: column; align-items: stretch; }
 .mac-form .ant-form-item.stack .ant-form-item-label { flex: none; max-width: none; padding-bottom: 6px !important; }
+.mac-form .ant-form-item.stack .ant-form-item-control { flex: none; width: 100%; max-width: 100%; }
 .mac-form .ant-segmented { max-width: 100%; }
 .label-with-status { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; }
 .label-with-status .status { font-size: 11px; }
@@ -400,4 +401,66 @@ html[data-theme="dark"] .access-item.is-selected { background: #5a5a5e; }
 }
 @media (max-width: 760px) {
   .role-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ================= Tasks ================= */
+
+.list-pane-header .list-pane-add.ant-btn { margin-left: auto; width: 22px; height: 22px; min-width: 22px; color: var(--label-2); }
+.detail-inner.wide { max-width: 1040px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.mac-form .mono-input, .mono-input.ant-input { font-family: var(--font-mono); font-size: 12px; }
+
+.task-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.task-heading h2 { font-size: 20px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.task-meta { display: flex; align-items: center; gap: 12px; margin-top: 4px; font-size: 12px; color: var(--label-3); }
+.task-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+.task-tabs { margin-top: 16px; }
+.task-result { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: 14px 16px; border-radius: var(--radius-card); background: var(--bg-card); box-shadow: var(--shadow-card); font-family: inherit; line-height: 1.65; }
+
+.change-browser {
+  display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 320px;
+  border-radius: var(--radius-card); background: var(--bg-card); box-shadow: var(--shadow-card); overflow: hidden;
+}
+.change-list { border-right: 1px solid var(--separator); padding: 6px; overflow-y: auto; max-height: 560px; }
+.change-item {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; gap: 2px 8px; align-items: center;
+  width: 100%; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; text-align: left; color: var(--label);
+}
+.change-item:hover { background: var(--fill); }
+.change-item.selected { background: var(--accent-soft); }
+.change-kind { grid-row: span 2; font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; background: var(--fill-strong); color: var(--label-2); }
+.change-added { background: color-mix(in srgb, var(--green) 18%, transparent); color: color-mix(in srgb, var(--green) 70%, var(--label)); }
+.change-modified { background: color-mix(in srgb, var(--blue) 15%, transparent); color: color-mix(in srgb, var(--blue) 75%, var(--label)); }
+.change-deleted { background: color-mix(in srgb, var(--red) 15%, transparent); color: color-mix(in srgb, var(--red) 75%, var(--label)); }
+.change-path { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.change-stat { font-size: 11px; font-family: var(--font-mono); color: var(--label-3); }
+.change-stat .add { color: var(--green); }
+.change-stat .del { color: var(--red); }
+.change-diff { min-width: 0; overflow: auto; max-height: 560px; }
+
+.diff-view { font-family: var(--font-mono); font-size: 12px; line-height: 1.55; min-width: max-content; padding: 4px 0; }
+.diff-row { display: grid; grid-template-columns: 44px 44px 18px auto; }
+.diff-num { padding: 0 8px 0 0; text-align: right; color: var(--label-3); user-select: none; }
+.diff-mark { text-align: center; color: var(--label-3); user-select: none; }
+.diff-text { font-family: inherit; font-size: inherit; white-space: pre; padding-right: 16px; }
+.diff-add { background: color-mix(in srgb, var(--green) 13%, transparent); }
+.diff-add .diff-mark { color: var(--green); }
+.diff-del { background: color-mix(in srgb, var(--red) 12%, transparent); }
+.diff-del .diff-mark { color: var(--red); }
+.diff-hunk { background: var(--accent-soft); color: var(--label-2); }
+.diff-hunk .diff-text { padding-left: 4px; }
+.diff-note { color: var(--label-3); font-style: italic; }
+
+.tool-log { display: grid; gap: 6px; margin-top: 12px; }
+.tool-log-item { border-radius: 8px; background: var(--bg-card); box-shadow: var(--shadow-card); }
+.tool-log-item summary { display: flex; gap: 10px; align-items: center; padding: 8px 12px; cursor: default; font-size: 12px; }
+.tool-log-item summary span { font-weight: 600; flex-shrink: 0; }
+.tool-log-item summary code { color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-log-item pre { margin: 0; padding: 10px 12px; border-top: 1px solid var(--separator); max-height: 320px; overflow: auto; font-family: var(--font-mono); font-size: 11.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+@media (max-width: 1100px) {
+  .change-browser { grid-template-columns: minmax(0, 1fr); }
+  .change-list { border-right: 0; border-bottom: 1px solid var(--separator); max-height: 200px; }
+  .task-heading { flex-direction: column; }
+  .task-actions { justify-content: flex-start; }
 }

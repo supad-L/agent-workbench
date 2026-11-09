@@ -141,3 +141,30 @@ func TestResumeCompletesPendingBatchWithoutCallingModelAgainFirst(t *testing.T) 
 		t.Fatal(executed, calls, err)
 	}
 }
+
+func TestTaskLimitsRaiseBoundsWithoutChangingTrialDefaults(t *testing.T) {
+	big := strings.Repeat("x", 40<<10)
+	model := modelFunc(func(_ context.Context, r runtime.Request, _ func(runtime.Event) error) (runtime.Result, error) {
+		if len(r.Messages) == 1 {
+			return runtime.Result{Calls: []runtime.ToolCall{{ID: "c1", Name: "read", Arguments: json.RawMessage(`{}`)}}}, nil
+		}
+		return runtime.Result{Text: "done"}, nil
+	})
+	tool := Binding{Definition: runtime.Tool{Name: "read", Parameters: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)}, Execute: func(context.Context, string, json.RawMessage) (string, error) { return big, nil }}
+	start := State{Messages: []runtime.Message{{Role: "user", Text: "go"}}}
+	// Defaults: 20 turns and a 40 KiB tool result are both refused.
+	if _, err := Run(context.Background(), Options{Model: model, ModelID: "m", MaxTurns: 20, MaxOutputTokens: 64, Tools: []Binding{tool}}, start); err == nil || !strings.Contains(err.Error(), "运行参数") {
+		t.Fatalf("default turn cap must stay at 16: %v", err)
+	}
+	if _, err := Run(context.Background(), Options{Model: model, ModelID: "m", MaxTurns: 4, MaxOutputTokens: 64, Tools: []Binding{tool}}, start); err == nil || !strings.Contains(err.Error(), "32 KiB") {
+		t.Fatalf("default tool result cap must stay at 32 KiB: %v", err)
+	}
+	limits := Limits{MaxTurns: 30, MaxInputBytes: 384 << 10, MaxToolResultBytes: 48 << 10, MaxOutputTokens: 8192, MaxCallBytes: 128 << 10}
+	state, err := Run(context.Background(), Options{Model: model, ModelID: "m", MaxTurns: 30, MaxOutputTokens: 8192, Tools: []Binding{tool}, Limits: limits}, start)
+	if err != nil || !state.Completed || state.Text != "done" {
+		t.Fatalf("task limits: %+v %v", state, err)
+	}
+	if _, err := Run(context.Background(), Options{Model: model, ModelID: "m", MaxTurns: 4, MaxOutputTokens: 64, Limits: Limits{MaxTurns: 99}}, start); err == nil {
+		t.Fatal("limits above hard caps must be rejected")
+	}
+}

@@ -84,6 +84,25 @@ async function invoke(operation,payload,sender){
   const choices=[role.primary,...(role.fallback.enabled?role.fallback.candidates:[])];const resolved=await runValues(choices);
   return request('POST',`/api/projects/${projectID(payload)}/runs`,{role_id:role.id,role_revision:role.revision,input:payload.input,scope:payload.scope,idempotency_key:payload.idempotency_key,connection_revisions:resolved.revisions,values:resolved.values});
  }
+ case 'tasks.list':return request('GET',`/api/projects/${projectID(payload)}/tasks`);
+ case 'tasks.changes':return request('GET',`/api/projects/${projectID(payload)}/tasks/${projectID({id:payload.run_id})}/changes`);
+ case 'tasks.start':{
+  // Tasks use the role's primary connection only; credentials are resolved here and never reach the renderer.
+  await syncConnections();const roles=await request('GET','/api/roles');const role=roles.find(item=>item.id===payload.role_id);
+  if(!role||role.revision!==payload.role_revision)throw new Error('角色已变化，请重新选择后再执行');
+  const resolved=await runValues([role.primary]);
+  return request('POST',`/api/projects/${projectID(payload)}/tasks`,{role_id:role.id,role_revision:role.revision,title:payload.title,instructions:payload.instructions,write_dirs:payload.write_dirs,runtime:payload.runtime||'',image:payload.image||'',idempotency_key:payload.idempotency_key,connection_revisions:resolved.revisions,values:resolved.values});
+ }
+ case 'tasks.exportPatch':{
+  const changes=await request('GET',`/api/projects/${projectID(payload)}/tasks/${projectID({id:payload.run_id})}/changes`);
+  const patch=(changes.files||[]).map(file=>file.text||'').join('');
+  if(!patch)throw new Error('当前没有可导出的文本改动');
+  const name=String(payload.name||'task').replace(/[\\/:*?"<>|\n\r]+/g,'-').slice(0,80)||'task';
+  const selected=await dialog.showSaveDialog(window,{title:'导出任务改动',defaultPath:name+'.patch',filters:[{name:'补丁文件',extensions:['patch','diff']}]});
+  if(selected.canceled||!selected.filePath)return {saved:null};
+  await fs.promises.writeFile(selected.filePath,patch,{encoding:'utf8',mode:0o644});
+  return {saved:selected.filePath,files:(changes.files||[]).filter(file=>file.text).length};
+ }
  case 'runs.resume':{const id=projectID(payload),runID=projectID({id:payload.run_id});const run=await request('GET',`/api/projects/${id}/runs/${runID}`);const resolved=await runValues(run.choices);return request('POST',`/api/projects/${id}/runs/${runID}/resume`,{values:resolved.values});}
  case 'usage.get':return request('GET','/api/usage');
  case 'budget.save':{if(!['CNY','USD'].includes(payload.budget?.currency))throw new Error('预算币种无效');return request('PUT','/api/budgets/'+payload.budget.currency,payload.budget);}

@@ -42,6 +42,48 @@ func (a *Server) runRoutes() {
 		}
 		reply(w, run)
 	})
+	a.mux.HandleFunc("GET /api/projects/{id}/tasks", func(w http.ResponseWriter, r *http.Request) {
+		runs, err := a.Store.Runs(r.Context(), principal(r), r.PathValue("id"))
+		if err != nil {
+			replyError(w, err)
+			return
+		}
+		tasks := []store.Run{}
+		for _, run := range runs {
+			if run.Kind == "task" {
+				tasks = append(tasks, run)
+			}
+		}
+		reply(w, tasks)
+	})
+	a.mux.HandleFunc("POST /api/projects/{id}/tasks", func(w http.ResponseWriter, r *http.Request) {
+		if !human(r) {
+			replyError(w, store.ErrForbidden)
+			return
+		}
+		var input struct {
+			store.TaskInput
+			Values map[string]map[string]string `json:"values"`
+		}
+		if err := decode(w, r, &input); err != nil {
+			replyError(w, err)
+			return
+		}
+		run, err := a.Runner.StartTask(r.Context(), principal(r), r.PathValue("id"), input.TaskInput, input.Values)
+		if err != nil {
+			replyError(w, err)
+			return
+		}
+		reply(w, run)
+	})
+	a.mux.HandleFunc("GET /api/projects/{id}/tasks/{run}/changes", func(w http.ResponseWriter, r *http.Request) {
+		diffs, err := a.Runner.TaskChanges(r.Context(), principal(r), r.PathValue("id"), r.PathValue("run"))
+		if err != nil {
+			replyError(w, err)
+			return
+		}
+		reply(w, map[string]any{"files": diffs})
+	})
 	a.mux.HandleFunc("POST /api/projects/{id}/runs/{run}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.Runner.Cancel(r.Context(), principal(r), r.PathValue("id"), r.PathValue("run")); err != nil {
 			replyError(w, err)

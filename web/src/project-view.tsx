@@ -3,10 +3,11 @@ import { App, Button, Drawer, Form, Input, Segmented, Select, Spin, Table, Typog
 import { CheckOutlined, EditOutlined, FileAddOutlined, FileTextOutlined, MessageOutlined, PlusOutlined, SafetyCertificateOutlined, SendOutlined } from '@ant-design/icons';
 import { api, idempotency, type Bundle, type Doc, type EventRecord, type Plan } from './api';
 import NativeSessions from './native-sessions';
+import Tasks from './tasks';
 import { EmptyState, Group, InfoTip, Notice, Page, Row, Status, Toolbar } from './ui';
 
 const lines = (value: string) => value.split('\n').map(v => v.trim()).filter(Boolean);
-type View = 'workspace' | 'documents' | 'native' | 'events';
+type View = 'workspace' | 'tasks' | 'documents' | 'native' | 'events';
 
 export default function ProjectView({ id, onChange }: { id: string; onChange: () => void }) {
   const { message } = App.useApp();
@@ -208,6 +209,7 @@ export default function ProjectView({ id, onChange }: { id: string; onChange: ()
       subtitle={<Status tone={active ? 'green' : 'gray'}>{active ? `当前确认 V${active.version}` : '尚未确认方案'}</Status>}
       center={<Segmented<View> aria-label="项目视图" value={view} onChange={setView} options={[
         { value: 'workspace', label: '需求与方案' },
+        { value: 'tasks', label: '任务' },
         { value: 'documents', label: `资料 ${bundle.documents.length}` },
         { value: 'native', label: '原生会话' },
         { value: 'events', label: '事件' },
@@ -217,6 +219,7 @@ export default function ProjectView({ id, onChange }: { id: string; onChange: ()
         if (!result.agent_can_confirm) message.success('权限验证通过：Agent 确认请求被拒绝（403）');
       })}>验证权限边界</Button>} />
     {view === 'workspace' && <div className="split-view">{conversation}{plan}</div>}
+    {view === 'tasks' && <Tasks project={bundle.project} />}
     {view === 'documents' && documents}
     {view === 'native' && <Page><NativeSessions projectID={id} /></Page>}
     {view === 'events' && eventList}

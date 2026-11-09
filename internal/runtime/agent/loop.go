@@ -72,6 +72,40 @@ type Options struct {
 	AfterAttempt    func(context.Context, Attempt, *runtime.Usage) error
 	Verify          func(context.Context) error
 	Emit            func(Progress) error
+	// Limits raises the role-trial defaults for explicitly bounded task runs.
+	Limits Limits
+}
+
+// Limits are hard bounds for one run. Zero fields keep the role-trial defaults.
+type Limits struct {
+	MaxTurns           int
+	MaxInputBytes      int
+	MaxToolResultBytes int
+	MaxOutputTokens    int
+	MaxCallBytes       int
+}
+
+func (l Limits) resolve() (Limits, error) {
+	result := Limits{MaxTurns: 16, MaxInputBytes: MaxInputBytes, MaxToolResultBytes: 32768, MaxOutputTokens: 4096, MaxCallBytes: 32768}
+	if l.MaxTurns != 0 {
+		result.MaxTurns = l.MaxTurns
+	}
+	if l.MaxInputBytes != 0 {
+		result.MaxInputBytes = l.MaxInputBytes
+	}
+	if l.MaxToolResultBytes != 0 {
+		result.MaxToolResultBytes = l.MaxToolResultBytes
+	}
+	if l.MaxOutputTokens != 0 {
+		result.MaxOutputTokens = l.MaxOutputTokens
+	}
+	if l.MaxCallBytes != 0 {
+		result.MaxCallBytes = l.MaxCallBytes
+	}
+	if result.MaxTurns < 1 || result.MaxTurns > 40 || result.MaxInputBytes < 1024 || result.MaxInputBytes > 512<<10 || result.MaxToolResultBytes < 1024 || result.MaxToolResultBytes > 64<<10 || result.MaxOutputTokens < 1 || result.MaxOutputTokens > 16384 || result.MaxCallBytes < 1024 || result.MaxCallBytes > 256<<10 {
+		return result, errors.New("运行上限无效")
+	}
+	return result, nil
 }
 
 type noNetwork struct{}
@@ -82,7 +116,8 @@ func (noNetwork) Load(string) (any, error) {
 
 // Run verifies complete tool calls, checkpoints every boundary, and never runs a shell itself.
 func Run(ctx context.Context, o Options, state State) (State, error) {
-	if o.Model == nil || o.ModelID == "" || o.MaxTurns < 1 || o.MaxTurns > 16 || o.Retries < 0 || o.Retries > 2 || o.MaxOutputTokens < 1 || o.MaxOutputTokens > 4096 || len(state.Messages) == 0 || state.NextTurn < 0 || state.NextTurn > o.MaxTurns || state.Attempts < 0 || state.Attempts > o.MaxTurns*(o.Retries+1) {
+	limits, limitErr := o.Limits.resolve()
+	if limitErr != nil || o.Model == nil || o.ModelID == "" || o.MaxTurns < 1 || o.MaxTurns > limits.MaxTurns || o.Retries < 0 || o.Retries > 2 || o.MaxOutputTokens < 1 || o.MaxOutputTokens > limits.MaxOutputTokens || len(state.Messages) == 0 || state.NextTurn < 0 || state.NextTurn > o.MaxTurns || state.Attempts < 0 || state.Attempts > o.MaxTurns*(o.Retries+1) {
 		return state, errors.New("运行参数或恢复状态无效")
 	}
 	if state.ToolResults == nil {
@@ -134,7 +169,7 @@ func Run(ctx context.Context, o Options, state State) (State, error) {
 		for _, call := range calls {
 			binding, ok := bindings[call.Name]
 			total += len(call.Arguments)
-			if !ok || binding.Execute == nil || call.ID == "" || seen[call.ID] || total > 32768 {
+			if !ok || binding.Execute == nil || call.ID == "" || seen[call.ID] || total > limits.MaxCallBytes {
 				return errors.New("模型返回未授权、重复或过大的工具调用")
 			}
 			seen[call.ID] = true
@@ -171,8 +206,8 @@ func Run(ctx context.Context, o Options, state State) (State, error) {
 				if err != nil {
 					return fmt.Errorf("工具 %s 执行失败", call.Name)
 				}
-				if len(text) > 32768 {
-					return errors.New("工具结果超过 32 KiB 上限")
+				if len(text) > limits.MaxToolResultBytes {
+					return fmt.Errorf("工具结果超过 %d KiB 上限", limits.MaxToolResultBytes>>10)
 				}
 				previous = ToolResult{Name: call.Name, Arguments: call.Arguments, Text: text}
 				state.ToolResults[call.ID] = previous
@@ -205,8 +240,8 @@ func Run(ctx context.Context, o Options, state State) (State, error) {
 		if err != nil {
 			return state, err
 		}
-		if len(raw) > MaxInputBytes {
-			return state, errors.New("运行上下文超过 64 KiB 上限，请缩小输入或新建会话")
+		if len(raw) > limits.MaxInputBytes {
+			return state, fmt.Errorf("运行上下文超过 %d KiB 上限，请缩小输入或新建会话", limits.MaxInputBytes>>10)
 		}
 		var result runtime.Result
 		for retry := 0; retry <= o.Retries; retry++ {

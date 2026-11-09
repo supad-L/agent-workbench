@@ -55,6 +55,7 @@ type Run struct {
 	CreatedAt   string          `json:"created_at"`
 	UpdatedAt   string          `json:"updated_at"`
 	Preview     string          `json:"preview,omitempty"`
+	Task        *TaskSpec       `json:"task,omitempty"`
 }
 
 func readRun(ctx context.Context, q planQuerier, id string) (Run, error) {
@@ -75,7 +76,11 @@ func writeRun(ctx context.Context, tx *sql.Tx, run Run) error {
 	if err != nil {
 		return err
 	}
-	if len(raw) > 1<<20 {
+	limit := 1 << 20
+	if run.Kind == "task" {
+		limit = taskMaxRunBytes
+	}
+	if len(raw) > limit {
 		return errors.New("运行检查点超过上限")
 	}
 	c := run.Choices[run.ChoiceIndex].Connection

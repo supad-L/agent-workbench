@@ -29,7 +29,7 @@ export default function RoleTrial({ role, onClose }: { role: any; onClose: () =>
   useEffect(() => {
     let disposed = false;
     if (project) api<any[]>('runs.list', { id: project }).then(result => {
-      if (!disposed) setRuns(current => [...current, ...result.filter(run => run.role.id === role.id && !current.some(existing => existing.id === run.id))]);
+      if (!disposed) setRuns(current => [...current, ...result.filter(run => run.role.id === role.id && run.kind !== 'task' && !current.some(existing => existing.id === run.id))]);
     }).catch(error => { if (!disposed) message.error(error.message); });
     return () => { disposed = true; };
   }, [project, role.id]);

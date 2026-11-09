@@ -50,7 +50,7 @@ func Open(ctx context.Context, dataDir string) (*Server, error) {
 		return nil, err
 	}
 	a := &Server{Store: s, DataDir: dataDir, HumanToken: store.ID() + store.ID(), agents: map[string]store.Principal{}, mux: http.NewServeMux()}
-	a.Runner, err = runservice.New(ctx, s, nil)
+	a.Runner, err = runservice.NewWithTasks(ctx, s, nil, filepath.Join(dataDir, "tasks"), nil)
 	if err != nil {
 		return nil, errors.Join(err, s.Close())
 	}
