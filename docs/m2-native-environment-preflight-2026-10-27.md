@@ -57,3 +57,11 @@ go test -race ./internal/preflight -run '^TestRealContainerNetworkPreflight$' -v
 准备并核对包含官方 Linux CLI 的可追溯镜像、合法认证交接与固定网络绑定，再接通受控的原生试运行、预算和真实账号验收。Claude 的登录浏览器、续期、推理及网络层强制出口仍是独立未完成项；本次普通诊断不能解除保护要求。
 
 运行参数核对依据：[Docker run](https://docs.docker.com/reference/cli/docker/container/run/)、[Podman run](https://docs.podman.io/en/stable/markdown/podman-run.1.html)。仅参考其能力与默认代理行为，实际验证范围以上述记录为准。
+
+## 2026-11-09 补充：官方 Codex CLI 镜像
+
+新增 `images/codex/Containerfile` 与 `scripts/build-codex-image.sh`：基于 `docker.io/library/node:22-bookworm-slim`（本次 digest `sha256:a09c611805f0d53d16ca876bd550ec9a4ae0bce65036d270659892d068f59a7c`），安装 npm 官方包 `@openai/codex`，不含账号、密钥或配置。构建脚本按本页检测的相同条件（断网、只读根、UID 1000、移除 capabilities、私有 `/tmp`）运行 `codex --version` 后再打标签。
+
+本机 Podman 6.1.4 实际构建结果：`localhost/agent-workbench/codex:0.167.0`，linux/arm64，镜像 ID `sha256:57fe2c1631c798515ea3b4ee8944cdbc8f18d226a6e005dbd06e2789c7b33e60`，输出 `codex-cli 0.167.0`。Codex 在 CODEX_HOME 不存在时会向 stderr 打印 PATH 别名警告，检测只读取 stdout，不影响格式匹配。
+
+这只说明容器内工具存在且能离线运行；npm 包来源未做签名核验，认证交接、联网执行和真实编码仍未验收，`execution_ready` 保持 false。

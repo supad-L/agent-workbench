@@ -1,0 +1,18 @@
+# Agent Workbench：官方 Codex CLI 运行镜像（Linux amd64 / arm64）
+# 只包含 npm 官方包 @openai/codex 与其运行所需的 Node.js；不包含账号、密钥、认证目录或任何配置。
+ARG NODE_IMAGE=docker.io/library/node:22-bookworm-slim
+FROM ${NODE_IMAGE}
+
+ARG CODEX_VERSION=latest
+RUN npm install --global --omit=dev --no-fund --no-audit --loglevel=error "@openai/codex@${CODEX_VERSION}" \
+ && npm cache clean --force \
+ && test -x /usr/local/bin/codex
+
+# 与工作台检测相同的条件下自检：非 root、HOME 不存在、无配置。
+USER 1000:1000
+RUN HOME=/tmp/awb-build-check CODEX_HOME=/tmp/awb-build-check/codex /usr/local/bin/codex --version
+
+WORKDIR /tmp
+LABEL org.opencontainers.image.title="agent-workbench-codex" \
+      org.opencontainers.image.description="Official @openai/codex CLI for Agent Workbench isolated execution" \
+      io.agent-workbench.codex.package="@openai/codex"
