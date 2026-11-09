@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { App, Alert, Button, Collapse, Drawer, Form, Input, Radio, Select, Space } from 'antd';
+import { App, Button, Collapse, Drawer, Form, Input, Radio, Select } from 'antd';
+import { Notice } from './ui';
 import { api, idempotency, type EventRecord, type Project } from './api';
 import RunDetails, { runStates } from './run-details';
 
@@ -113,10 +114,10 @@ export default function RoleTrial({ role, onClose }: { role: any; onClose: () =>
   const traceMatches = trace.key === `${project}/${selected?.id}`;
   const events = traceMatches ? trace.events : [];
   const traceError = traceMatches ? trace.error : '';
-  return <Drawer title={`${role.name} · 只读试运行`} open size="large" onClose={onClose}>
-    <Alert type="info" showIcon title="验证角色与模型连接，会消耗 API 额度" description="仅开放授权范围内的只读平台信息，不写项目文件或运行命令。关闭面板不会取消后台运行。" />
-    <Collapse className="trial-composer" activeKey={composerOpen ? ['input'] : []} onChange={keys => setComposerOpen(keys.includes('input'))} items={[
-      { key: 'input', label: selected ? '填写新的试运行输入' : '选择项目与输入', forceRender: true, children: <Form form={form} layout="vertical" initialValues={{ scope: 'conversation_only' }}>
+  return <Drawer title={`${role.name} · 只读试运行`} open size="large" onClose={onClose} className="trial-drawer">
+    <Notice tone="blue" title="验证角色与模型连接，会消耗 API 额度">仅开放授权范围内的只读平台信息，不写项目文件或运行命令。关闭面板不会取消后台运行。</Notice>
+    <Collapse className="trial-composer panel-collapse" activeKey={composerOpen ? ['input'] : []} onChange={keys => setComposerOpen(keys.includes('input'))} items={[
+      { key: 'input', label: selected ? '填写新的试运行输入' : '选择项目与输入', forceRender: true, children: <Form form={form} layout="vertical" className="panel-form" initialValues={{ scope: 'conversation_only' }}>
         <Form.Item name="project_id" label="关联项目" rules={[{ required: true, message: '请选择项目' }]}><Select virtual={false} onChange={changeProject} disabled={running || busy} options={projects.map(item => ({ value: item.id, label: item.name }))} /></Form.Item>
         <Form.Item name="input" label="试运行输入" rules={[{ required: true, whitespace: true, message: '请填写输入' }]}><Input.TextArea disabled={running || busy} rows={4} maxLength={16384} /></Form.Item>
         <Form.Item name="scope" label="允许发送的资料范围"><Radio.Group disabled={running || busy} options={[{ value: 'conversation_only', label: '角色提示词与本次对话' }, { value: 'project_summary', label: '另允许读取项目与确认方案摘要' }]} /></Form.Item>
@@ -126,12 +127,12 @@ export default function RoleTrial({ role, onClose }: { role: any; onClose: () =>
     {runs.length > 0 && <div className="trial-history"><label htmlFor="trial-history">历史试运行</label><Select id="trial-history" aria-label="历史试运行" virtual={false} style={{ width: '100%' }} placeholder="查看本角色的历史试运行"
       loading={historyBusy} disabled={busy || running} value={historyID}
       options={runs.map(run => ({ value: run.id, label: `${new Date(run.created_at).toLocaleString()} · ${runStates[run.status] || run.status}` }))} onChange={chooseRun} /></div>}
-    {snapshotError && <Alert type="warning" showIcon title="运行记录暂不可用" description={snapshotError}
-      action={<Button size="small" onClick={() => selected ? setSnapshotRevision(value => value + 1) : historyID && chooseRun(historyID)}>重试读取记录</Button>} />}
+    {snapshotError && <Notice tone="orange" title="运行记录暂不可用"
+      action={<Button size="small" onClick={() => selected ? setSnapshotRevision(value => value + 1) : historyID && chooseRun(historyID)}>重试读取记录</Button>}>{snapshotError}</Notice>}
     {selected && <>
       <RunDetails key={selected.id} run={selected} events={events} traceError={traceError} onRetryTrace={() => setTraceRevision(value => value + 1)} />
-      <Space className="trial-controls">{running && <Button danger loading={busy} onClick={() => operate('runs.cancel')}>取消运行</Button>}
-        {['interrupted', 'cancelled', 'failed'].includes(selected.status) && selected.state.attempts < selected.max_turns * (selected.retries + 1) && <Button loading={busy} onClick={() => operate('runs.resume')}>继续运行（可能再次计费）</Button>}</Space>
+      <div className="trial-controls">{running && <Button danger loading={busy} onClick={() => operate('runs.cancel')}>取消运行</Button>}
+        {['interrupted', 'cancelled', 'failed'].includes(selected.status) && selected.state.attempts < selected.max_turns * (selected.retries + 1) && <Button loading={busy} onClick={() => operate('runs.resume')}>继续运行（可能再次计费）</Button>}</div>
     </>}
   </Drawer>;
 }

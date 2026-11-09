@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, it, expect, vi } from 'vitest';
-import { act, cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { AppearanceProvider, AppearanceControl, appearanceStorageKey } from './appearance';
 import Workbench from './workbench';
 
@@ -19,8 +19,8 @@ afterEach(() => {
   delete document.documentElement.dataset.theme; document.documentElement.style.colorScheme = '';
 });
 async function choose(label: string) {
-  fireEvent.mouseDown(screen.getByLabelText('外观模式'));
-  fireEvent.click(await screen.findByRole('option', { name: label }));
+  const group = await screen.findByRole('radiogroup', { name: '外观模式' });
+  fireEvent.click(within(group).getByRole('radio', { name: label }));
 }
 
 it('记住手动选择，重新挂载时恢复，并只向桌面提交外观设置', async () => {
@@ -63,6 +63,7 @@ it('在连接表单中切换主题保留未保存输入，不检查账号或请�
   fireEvent.click(screen.getByRole('button', { name: '模型连接' }));
   const name = await screen.findByLabelText(/^连接名称/);
   fireEvent.change(name, { target: { value: '尚未保存的连接' } });
+  fireEvent.click(screen.getByRole('button', { name: '设置' }));
   await choose('深色');
   expect((screen.getByLabelText(/^连接名称/) as HTMLInputElement).value).toBe('尚未保存的连接');
   expect(document.documentElement.dataset.theme).toBe('dark');

@@ -10,12 +10,22 @@ for (const [source, systemDark, expected] of [
     const changes = [];
     const nativeTheme = { themeSource: 'system', shouldUseDarkColors: systemDark };
     const window = { setBackgroundColor: value => changes.push(value) };
-    const result = applyAppearance(source, { nativeTheme, window });
+    const result = applyAppearance(source, { nativeTheme, window, platform: 'linux' });
     assert.deepEqual(result, { source, resolved: expected });
     assert.equal(nativeTheme.themeSource, source);
-    assert.deepEqual(changes, [expected === 'dark' ? '#0e1622' : '#f3f6fa']);
+    assert.deepEqual(changes, [expected === 'dark' ? '#1e1e1e' : '#ffffff']);
   });
 }
+
+test('macOS 保持透明窗口背景以显示侧栏材质', () => {
+  for (const source of ['light', 'dark', 'system']) {
+    const changes = [];
+    const nativeTheme = { themeSource: 'system', shouldUseDarkColors: true };
+    applyAppearance(source, { nativeTheme, window: { setBackgroundColor: value => changes.push(value) }, platform: 'darwin' });
+    assert.deepEqual(changes, ['#00000000']);
+    assert.equal(nativeTheme.themeSource, source);
+  }
+});
 
 test('无效外观输入在更改原生主题或窗口前拒绝', () => {
   const nativeTheme = { themeSource: 'light' };

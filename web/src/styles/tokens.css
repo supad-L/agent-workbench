@@ -1,0 +1,85 @@
+/* macOS-style design tokens. Light is the default; dark applies to an explicit
+   choice or, when the preference follows the system, to a dark system scheme. */
+:root {
+  --accent: #007aff;
+  --accent-hover: #0068d9;
+  --accent-soft: rgba(0, 122, 255, 0.12);
+  --on-accent: #ffffff;
+
+  --bg-window: #ffffff;
+  --bg-grouped: #f5f5f7;
+  --bg-card: #ffffff;
+  --bg-sidebar: #ececee;
+  --bg-sidebar-tint: rgba(236, 236, 238, 0.55);
+  --bg-toolbar: rgba(255, 255, 255, 0.86);
+  --bg-elevated: #ffffff;
+  --bg-bubble: #f0f0f2;
+
+  --label: rgba(0, 0, 0, 0.85);
+  --label-2: rgba(0, 0, 0, 0.55);
+  --label-3: rgba(0, 0, 0, 0.3);
+  --separator: rgba(0, 0, 0, 0.1);
+  --separator-strong: rgba(0, 0, 0, 0.16);
+  --fill: rgba(0, 0, 0, 0.05);
+  --fill-strong: rgba(0, 0, 0, 0.08);
+  --sidebar-selected: rgba(0, 0, 0, 0.08);
+
+  --green: #34c759;
+  --orange: #ff9500;
+  --red: #ff3b30;
+  --blue: #007aff;
+  --purple: #af52de;
+  --teal: #30b0c7;
+  --pink: #ff2d55;
+  --gray: #8e8e93;
+
+  --shadow-card: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-pop: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 8px 28px rgba(0, 0, 0, 0.16);
+
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-panel: 12px;
+  --sidebar-width: 232px;
+  --toolbar-height: 52px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-soft: rgba(10, 132, 255, 0.2);
+
+  --bg-window: #1e1e1e;
+  --bg-grouped: #19191a;
+  --bg-card: #2a2a2c;
+  --bg-sidebar: #262628;
+  --bg-sidebar-tint: rgba(38, 38, 40, 0.45);
+  --bg-toolbar: rgba(30, 30, 30, 0.86);
+  --bg-elevated: #2c2c2e;
+  --bg-bubble: #323234;
+
+  --label: rgba(255, 255, 255, 0.88);
+  --label-2: rgba(255, 255, 255, 0.55);
+  --label-3: rgba(255, 255, 255, 0.28);
+  --separator: rgba(255, 255, 255, 0.1);
+  --separator-strong: rgba(255, 255, 255, 0.16);
+  --fill: rgba(255, 255, 255, 0.07);
+  --fill-strong: rgba(255, 255, 255, 0.11);
+  --sidebar-selected: rgba(255, 255, 255, 0.1);
+
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --red: #ff453a;
+  --blue: #0a84ff;
+  --purple: #bf5af2;
+  --teal: #40c8e0;
+  --pink: #ff375f;
+  --gray: #98989d;
+
+  --shadow-card: 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 10px 32px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, App, Button, Descriptions, Drawer, Empty, Input, Space, Table, Tag, Typography } from 'antd';
+import { App, Button, Drawer, Input, Table, Typography } from 'antd';
 import { api } from './api';
+import { EmptyState, Group, InfoTip, Notice, Row, Status, type Tone } from './ui';
 
 type Session = {
   id: string; status: string; recovery: string; native_session_id?: string; run_directory: string;
@@ -10,6 +11,7 @@ type Session = {
 type View = { session: Session; can_resume: boolean; recovery_reason: string; live_ready: boolean };
 type Detail = { view: View; attempts: { number: number; mode: string; status: string; checkpoint_sequence: number; checkpoint: Session['checkpoint'] }[] };
 const statuses: Record<string, string> = { ready: '尚未启动', running: '运行中', completed: '上次回合完成', interrupted: '已中断', failed: '未完成', uncertain: '结果未知', blocked: '未就绪' };
+const statusTone = (status: string): Tone => status === 'uncertain' ? 'orange' : status === 'completed' ? 'green' : status === 'running' ? 'blue' : 'gray';
 const recoveryLabel = (view: View) => view.can_resume ? '本地续接条件齐备' : view.session.recovery === 'uncertain' ? '结果待核对' : view.session.recovery === 'not_started' ? '未启动过模型请求' : '续接条件不齐';
 
 export default function NativeSessions({ projectID }: { projectID: string }) {
@@ -44,38 +46,52 @@ export default function NativeSessions({ projectID }: { projectID: string }) {
     finally { if (selections.current === generation) setReading(false); }
   }
   const selected = detail?.view.session;
-  return <section className="native-sessions">
-    <div className="section-heading"><h2>原生会话记录</h2><Button loading={loading || reading} onClick={() => void reload()}>刷新会话记录</Button></div>
-    <Alert showIcon type="info" title="持久记录不会自动重发模型请求" description="此页用于核对会话编号、检查点和恢复条件。当前不开放原生启动或继续操作，真实账号与在线隔离执行仍待验收。" />
-    {error && <Alert type="warning" showIcon title={error} />}
-    <Table<View> className="native-session-table" loading={loading} rowKey={view => view.session.id} pagination={{ pageSize: 8 }} dataSource={views}
-      locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="此项目尚无原生会话记录" /> }} columns={[
-        { title: '会话 / 模型', render: (_, view) => <div className="native-session-identity"><strong>{view.session.binding.model}</strong><small>{view.session.id}</small></div> },
-        { title: '运行状态', render: (_, view) => <Tag color={view.session.status === 'uncertain' ? 'orange' : view.session.status === 'completed' ? 'green' : 'default'}>{statuses[view.session.status] || view.session.status}</Tag> },
-        { title: '恢复条件', render: (_, view) => <span>{recoveryLabel(view)}</span> },
-        { title: '操作', render: (_, view) => <Button size="small" onClick={() => void open(view.session.id)}>查看检查点</Button> },
-      ]} />
+  return <section className="group native-sessions">
+    <div className="group-header">
+      <h2>原生会话记录</h2>
+      <div className="group-extra">
+        <InfoTip title="持久记录不会自动重发模型请求">此页用于核对会话编号、检查点和恢复条件。</InfoTip>
+        <Button size="small" loading={loading || reading} onClick={() => void reload()}>刷新会话记录</Button>
+      </div>
+    </div>
+    {error && <Notice tone="orange" title={error} />}
+    <div className="group-card">
+      <Table<View> className="flush-table" size="small" loading={loading} rowKey={view => view.session.id} pagination={{ pageSize: 8, size: 'small', hideOnSinglePage: true }} dataSource={views}
+        locale={{ emptyText: <EmptyState title="此项目尚无原生会话记录" /> }} columns={[
+          { title: '会话 / 模型', render: (_, view) => <div className="native-session-identity"><strong>{view.session.binding.model}</strong><small className="mono">{view.session.id}</small></div> },
+          { title: '运行状态', width: 140, render: (_, view) => <Status tone={statusTone(view.session.status)}>{statuses[view.session.status] || view.session.status}</Status> },
+          { title: '恢复条件', width: 170, render: (_, view) => <span>{recoveryLabel(view)}</span> },
+          { title: '', width: 110, align: 'right', render: (_, view) => <Button size="small" onClick={() => void open(view.session.id)}>查看检查点</Button> },
+        ]} />
+    </div>
+    <div className="group-footer">当前不开放原生启动或继续操作，真实账号与在线隔离执行仍待验收。</div>
     <Drawer title="原生会话与检查点" open={!!detail} onClose={() => { selections.current++; setDetail(undefined); }} size="large">
       {selected && detail && <>
-        <Space wrap><Tag>{statuses[selected.status] || selected.status}</Tag><Tag color={detail.view.can_resume ? 'blue' : 'orange'}>{recoveryLabel(detail.view)}</Tag></Space>
-        <p className="trial-detail-note">{detail.view.recovery_reason}</p>
-        <Descriptions size="small" column={1} items={[
-          { key: 'id', label: '工作台会话', children: selected.id },
-          { key: 'native', label: '原生会话编号', children: selected.native_session_id || '尚未获得' },
-          { key: 'model', label: '固定模型', children: selected.binding.model },
-          { key: 'runtime', label: '隔离运行时', children: selected.binding.runtime },
-          { key: 'directory', label: '独立运行目录', children: <Typography.Text copyable>{selected.run_directory}</Typography.Text> },
-          { key: 'cleanup', label: '容器停止核验', children: selected.cleanup_verified ? '已确认' : '尚未确认' },
-          { key: 'provider', label: '提供方终态', children: selected.checkpoint.provider_completed ? selected.status === 'completed' && selected.cleanup_verified ? '提供方终态、进程退出和清理均已确认' : '已收到提供方成功终态，进程结果仍待核对' : '未记录完整成功终态' },
-          { key: 'updated', label: '最近保存', children: new Date(selected.updated_at).toLocaleString() },
-        ]} />
-        <h3>检查点草稿</h3><Input.TextArea readOnly rows={6} aria-label="原生检查点草稿" value={selected.checkpoint.text || ''} placeholder="尚无可用草稿；草稿不作为已验收成果" />
-        <h3>执行尝试</h3><Table size="small" rowKey="number" pagination={false} dataSource={detail.attempts} columns={[
-          { title: '尝试', dataIndex: 'number' }, { title: '方式', render: (_, row) => row.mode === 'resume' ? '显式续接' : '首次启动' },
-          { title: '状态', render: (_, row) => statuses[row.status] || row.status }, { title: '检查点数', dataIndex: 'checkpoint_sequence' },
-        ]} />
-        <p className="trial-detail-note">继续会创建新的执行尝试并使用新的显式输入；结果未知不会仅凭会话编号判为可恢复。</p>
-        <Button disabled>账号与在线隔离执行接通后开放继续</Button>
+        <div className="drawer-status">
+          <Status tone={statusTone(selected.status)}>{statuses[selected.status] || selected.status}</Status>
+          <Status tone={detail.view.can_resume ? 'blue' : 'orange'}>{recoveryLabel(detail.view)}</Status>
+        </div>
+        <p className="form-note">{detail.view.recovery_reason}</p>
+        <Group>
+          <Row label="工作台会话"><span className="value-text mono">{selected.id}</span></Row>
+          <Row label="原生会话编号"><span className="value-text mono">{selected.native_session_id || '尚未获得'}</span></Row>
+          <Row label="固定模型"><span className="mono">{selected.binding.model}</span></Row>
+          <Row label="隔离运行时">{selected.binding.runtime}</Row>
+          <Row label="独立运行目录"><Typography.Text copyable className="value-text mono">{selected.run_directory}</Typography.Text></Row>
+          <Row label="容器停止核验"><Status tone={selected.cleanup_verified ? 'green' : 'orange'}>{selected.cleanup_verified ? '已确认' : '尚未确认'}</Status></Row>
+          <Row label="提供方终态"><span className="value-text">{selected.checkpoint.provider_completed ? selected.status === 'completed' && selected.cleanup_verified ? '提供方终态、进程退出和清理均已确认' : '已收到提供方成功终态，进程结果仍待核对' : '未记录完整成功终态'}</span></Row>
+          <Row label="最近保存">{new Date(selected.updated_at).toLocaleString()}</Row>
+        </Group>
+        <Group title="检查点草稿">
+          <Input.TextArea readOnly rows={6} variant="borderless" aria-label="原生检查点草稿" value={selected.checkpoint.text || ''} placeholder="尚无可用草稿；草稿不作为已验收成果" />
+        </Group>
+        <Group title="执行尝试" footer="继续会创建新的执行尝试并使用新的显式输入；结果未知不会仅凭会话编号判为可恢复。">
+          <Table className="flush-table" size="small" rowKey="number" pagination={false} dataSource={detail.attempts} columns={[
+            { title: '尝试', dataIndex: 'number' }, { title: '方式', render: (_, row) => row.mode === 'resume' ? '显式续接' : '首次启动' },
+            { title: '状态', render: (_, row) => statuses[row.status] || row.status }, { title: '检查点数', dataIndex: 'checkpoint_sequence' },
+          ]} />
+        </Group>
+        <Button disabled block>账号与在线隔离执行接通后开放继续</Button>
       </>}
     </Drawer>
   </section>;

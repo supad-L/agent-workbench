@@ -119,7 +119,10 @@ const single=app.requestSingleInstanceLock();if(!single)app.quit();else{
    finish:result=>request('POST','/api/native-account/auth/finish',result)
   }});
   const icon=nativeImage.createFromPath(path.join(root,'assets','app.png'));if(app.dock)app.dock.setIcon(icon);
-  window=new BrowserWindow({show:false,width:1320,height:900,minWidth:960,minHeight:680,title:'Agent Workbench',backgroundColor:nativeTheme.shouldUseDarkColors?'#0e1622':'#f3f6fa',icon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false}});
+  // macOS: hidden title bar with inset traffic lights and a vibrant sidebar; other platforms keep an opaque native frame.
+  const mac=process.platform==='darwin';
+  const chrome=mac?{titleBarStyle:'hiddenInset',trafficLightPosition:{x:18,y:18},vibrancy:'sidebar',visualEffectState:'followWindow',backgroundColor:'#00000000'}:{backgroundColor:nativeTheme.shouldUseDarkColors?'#1e1e1e':'#ffffff'};
+  window=new BrowserWindow({show:false,width:1320,height:900,minWidth:960,minHeight:680,title:'Agent Workbench',...chrome,icon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false}});
   window.once('ready-to-show',()=>{if(!smokeCheck)window.show()});
   window.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());window.webContents.on('will-attach-webview',event=>event.preventDefault());
   ipcMain.handle('workbench:invoke',async(event,operation,payload)=>{try{if(event.sender!==window.webContents||event.senderFrame?.url.split('#')[0]!==indexURL)throw new Error('此页面没有桌面操作权限');const value=await invoke(operation,payload||{},event.sender);startupOperations.add(operation);setImmediate(checkStartup);return {ok:true,value};}catch(error){return {ok:false,error:error.message||'操作失败'};}});
